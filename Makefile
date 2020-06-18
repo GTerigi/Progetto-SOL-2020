@@ -23,7 +23,14 @@ clear:
 
 test:
 	(./bin/supermarket.o & echo $$! > supermarket.PID) &
-	sleep 25s; \
+	sleep 10s; \
 	kill -1 $$(cat supermarket.PID); \
+	chmod +x ./analisi.sh 
+	./analisi.sh $$(cat supermarket.PID); \
+
+test2:
+	(./bin/supermarket.o & echo $$! > supermarket.PID) &
+	sleep 10s; \
+	kill -3 $$(cat supermarket.PID); \
 	chmod +x ./analisi.sh 
 	./analisi.sh $$(cat supermarket.PID); \
