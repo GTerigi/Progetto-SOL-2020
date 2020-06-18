@@ -1,0 +1,85 @@
+CUSTOMER -> | id customer:4 | n. bought products:0 | time in the supermarket: 0.158 s | time in queue: 0.000 s | n. queues checked: 0 | 
+CUSTOMER -> | id customer:29 | n. bought products:84 | time in the supermarket: 1.716 s | time in queue: 1.706 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:22 | n. bought products:96 | time in the supermarket: 1.975 s | time in queue: 1.963 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:46 | n. bought products:97 | time in the supermarket: 2.008 s | time in queue: 1.995 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:10 | n. bought products:31 | time in the supermarket: 2.362 s | time in queue: 2.342 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:36 | n. bought products:20 | time in the supermarket: 2.417 s | time in queue: 2.384 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:23 | n. bought products:49 | time in the supermarket: 3.044 s | time in queue: 3.028 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:47 | n. bought products:31 | time in the supermarket: 3.080 s | time in queue: 3.040 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:35 | n. bought products:90 | time in the supermarket: 4.185 s | time in queue: 4.157 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:34 | n. bought products:60 | time in the supermarket: 4.299 s | time in queue: 4.275 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:13 | n. bought products:72 | time in the supermarket: 4.566 s | time in queue: 4.505 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:12 | n. bought products:18 | time in the supermarket: 4.716 s | time in queue: 4.684 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:7 | n. bought products:42 | time in the supermarket: 5.450 s | time in queue: 5.382 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:1 | n. bought products:83 | time in the supermarket: 5.874 s | time in queue: 5.825 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:24 | n. bought products:31 | time in the supermarket: 6.112 s | time in queue: 6.044 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:25 | n. bought products:13 | time in the supermarket: 6.415 s | time in queue: 6.342 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:48 | n. bought products:85 | time in the supermarket: 6.469 s | time in queue: 6.424 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:18 | n. bought products:25 | time in the supermarket: 7.027 s | time in queue: 6.953 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:19 | n. bought products:54 | time in the supermarket: 7.539 s | time in queue: 7.459 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:6 | n. bought products:84 | time in the supermarket: 7.579 s | time in queue: 7.516 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:49 | n. bought products:39 | time in the supermarket: 7.859 s | time in queue: 7.762 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:37 | n. bought products:26 | time in the supermarket: 8.121 s | time in queue: 8.060 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:68 | n. bought products:92 | time in the supermarket: 1.969 s | time in queue: 1.861 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:70 | n. bought products:3 | time in the supermarket: 1.214 s | time in queue: 1.049 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:9 | n. bought products:77 | time in the supermarket: 9.122 s | time in queue: 9.023 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:2 | n. bought products:65 | time in the supermarket: 9.218 s | time in queue: 9.093 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:30 | n. bought products:90 | time in the supermarket: 9.948 s | time in queue: 9.885 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:42 | n. bought products:2 | time in the supermarket: 10.012 s | time in queue: 9.937 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:11 | n. bought products:12 | time in the supermarket: 10.279 s | time in queue: 10.185 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:72 | n. bought products:62 | time in the supermarket: 1.329 s | time in queue: 1.260 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:20 | n. bought products:60 | time in the supermarket: 10.473 s | time in queue: 10.341 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:32 | n. bought products:73 | time in the supermarket: 10.625 s | time in queue: 10.506 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:44 | n. bought products:14 | time in the supermarket: 10.806 s | time in queue: 10.675 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:75 | n. bought products:80 | time in the supermarket: 2.077 s | time in queue: 2.034 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:8 | n. bought products:95 | time in the supermarket: 12.205 s | time in queue: 12.109 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:77 | n. bought products:15 | time in the supermarket: 2.397 s | time in queue: 2.338 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:43 | n. bought products:84 | time in the supermarket: 12.347 s | time in queue: 12.220 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:14 | n. bought products:78 | time in the supermarket: 12.423 s | time in queue: 12.286 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:31 | n. bought products:43 | time in the supermarket: 13.089 s | time in queue: 12.974 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:38 | n. bought products:31 | time in the supermarket: 13.096 s | time in queue: 12.959 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:21 | n. bought products:66 | time in the supermarket: 13.711 s | time in queue: 13.576 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:26 | n. bought products:67 | time in the supermarket: 14.454 s | time in queue: 14.329 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:27 | n. bought products:48 | time in the supermarket: 14.715 s | time in queue: 14.537 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:50 | n. bought products:96 | time in the supermarket: 15.071 s | time in queue: 14.922 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:45 | n. bought products:44 | time in the supermarket: 15.637 s | time in queue: 15.453 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:39 | n. bought products:61 | time in the supermarket: 16.347 s | time in queue: 16.181 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:3 | n. bought products:95 | time in the supermarket: 16.381 s | time in queue: 16.252 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:15 | n. bought products:7 | time in the supermarket: 16.545 s | time in queue: 16.404 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:16 | n. bought products:13 | time in the supermarket: 16.664 s | time in queue: 16.494 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:51 | n. bought products:50 | time in the supermarket: 14.706 s | time in queue: 14.527 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:28 | n. bought products:2 | time in the supermarket: 16.758 s | time in queue: 16.576 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:33 | n. bought products:79 | time in the supermarket: 18.149 s | time in queue: 18.000 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:54 | n. bought products:91 | time in the supermarket: 16.125 s | time in queue: 16.086 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:17 | n. bought products:95 | time in the supermarket: 18.714 s | time in queue: 18.516 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:55 | n. bought products:21 | time in the supermarket: 16.588 s | time in queue: 16.473 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:5 | n. bought products:54 | time in the supermarket: 19.257 s | time in queue: 19.095 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:40 | n. bought products:67 | time in the supermarket: 20.619 s | time in queue: 20.449 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:56 | n. bought products:79 | time in the supermarket: 18.211 s | time in queue: 18.068 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:41 | n. bought products:97 | time in the supermarket: 20.708 s | time in queue: 20.509 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:52 | n. bought products:32 | time in the supermarket: 19.310 s | time in queue: 19.276 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:58 | n. bought products:38 | time in the supermarket: 17.247 s | time in queue: 17.095 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:53 | n. bought products:37 | time in the supermarket: 19.529 s | time in queue: 19.494 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:57 | n. bought products:8 | time in the supermarket: 17.532 s | time in queue: 17.384 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:59 | n. bought products:68 | time in the supermarket: 18.483 s | time in queue: 18.431 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:60 | n. bought products:74 | time in the supermarket: 18.241 s | time in queue: 18.184 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:64 | n. bought products:69 | time in the supermarket: 17.042 s | time in queue: 16.848 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:65 | n. bought products:26 | time in the supermarket: 17.103 s | time in queue: 17.080 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:76 | n. bought products:9 | time in the supermarket: 13.441 s | time in queue: 13.325 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:63 | n. bought products:15 | time in the supermarket: 17.429 s | time in queue: 17.239 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:61 | n. bought products:79 | time in the supermarket: 19.864 s | time in queue: 19.779 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:67 | n. bought products:62 | time in the supermarket: 17.780 s | time in queue: 17.653 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:62 | n. bought products:85 | time in the supermarket: 21.607 s | time in queue: 21.518 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:73 | n. bought products:92 | time in the supermarket: 17.596 s | time in queue: 17.475 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:66 | n. bought products:32 | time in the supermarket: 19.980 s | time in queue: 19.929 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:74 | n. bought products:50 | time in the supermarket: 18.621 s | time in queue: 18.495 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:71 | n. bought products:33 | time in the supermarket: 19.848 s | time in queue: 19.806 s | n. queues checked: 1 | 
+CUSTOMER -> | id customer:69 | n. bought products:21 | time in the supermarket: 20.312 s | time in queue: 20.175 s | n. queues checked: 1 | 
+CASHIER -> | id:1 | n. bought products:1354 | n. customers:25 | time opened: 28.176 s | avg service time: 1.126 s | number of clousure:1 |
+CASHIER -> | id:2 | n. bought products:1354 | n. customers:24 | time opened: 28.175 s | avg service time: 1.153 s | number of clousure:1 |
+CASHIER -> | id:3 | n. bought products:1108 | n. customers:22 | time opened: 28.176 s | avg service time: 1.062 s | number of clousure:1 |
+CASHIER -> | id:4 | n. bought products:252 | n. customers:5 | time opened: 22.174 s | avg service time: 1.028 s | number of clousure:1 |
+CASHIER -> | id:5 | n. bought products:0 | n. customers:0 | time opened: 0.000 s | avg service time: 0.000 s | number of clousure:0 |
+CASHIER -> | id:6 | n. bought products:0 | n. customers:0 | time opened: 0.000 s | avg service time: 0.000 s | number of clousure:0 |
+TOTAL CUSTOMERS SERVED: 76
+TOTAL PRODUCTS BOUGHT: 4068

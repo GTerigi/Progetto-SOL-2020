@@ -118,25 +118,13 @@ static int *aUpdateCassa;      // Used to update the director from cashier!
 static int sigUPCassaExit = 0; // Used when activecustomers are = 0 to send a
                                // signal to cashier in case of a SIGHUP
 static long globalTime;        // TIME
-static FILE *statsfile;        // File containing stats of the execution
+static FILE *fileLog;          // File containing stats of the execution
 
-volatile sig_atomic_t sighup = 0;
-volatile sig_atomic_t sigquit = 0;
+volatile sig_atomic_t sig_HUP = 0;
+volatile sig_atomic_t sig_QUIT = 0;
 
 void CreateQueueManagement();
 void QueueFree();
-
-static void handler(int signum) {
-
-  if (signum == 1)
-    sighup = 1;
-  if (signum == 3)
-    sigquit = 1;
-
-  printf("Signal Recived: %d\n", signum);
-  fflush(stdout);
-  printf("Supermarket is closing!\n");
-}
 
 void *clockT(void *arg) {
   int id = (int)(intptr_t)arg;
@@ -161,7 +149,7 @@ void *clockT(void *arg) {
       DEBUG_PRINT(("%d: EXITTIME %d\n", id, exittime));
       fflush(stdout);
     }
-    if (exittime != 1 && sigquit == 0 && sighup == 0) {
+    if (exittime != 1 && sig_QUIT == 0 && sig_HUP == 0) {
       if (DEBUG) {
         DEBUG_PRINT(("%d UPDATINGGGGGGGGGGGGGGGGGGGGGGGGGGGG \n", id));
         fflush(stdout);
@@ -194,7 +182,7 @@ void *clockT(void *arg) {
         DEBUG_PRINT(("CLOCK %d CLOSED \n", id));
         fflush(stdout);
       }
-      if (sigquit == 1 || sighup == 1) {
+      if (sig_QUIT == 1 || sig_HUP == 1) {
         pthread_mutex_lock(&MupdateCasse);
         pthread_cond_signal(&CupdateCasse); // Wake up the thread that controls
                                             // the sm checkouts to make it exit
@@ -252,10 +240,10 @@ void *customerT(void *arg) {
         if (codaCassa[nqueue]->queueopen != 0)
           check = 1; // Check if the queue is open
         pthread_mutex_unlock(&McodaClienti[nqueue]);
-        if (sigquit == 1)
+        if (sig_QUIT == 1)
           break;
       } while (check == 0);
-      if (sigquit != 1) {
+      if (sig_QUIT != 1) {
         pthread_mutex_lock(&McodaClienti[nqueue]);
         if (change == 0) {
           if (DEBUG) {
@@ -336,7 +324,7 @@ void *customerT(void *arg) {
     cs->timeq = time4 - time3; // Time passed in queue
 
   pthread_mutex_lock(&Mfile);
-  fprintf(statsfile,
+  fprintf(fileLog,
           "CUSTOMER -> | id customer:%d | n. bought products:%d | time in the "
           "supermarket: %0.3f s | time in queue: %0.3f s | n. queues checked: "
           "%d | \n",
@@ -389,7 +377,7 @@ void *smcheckout(void *arg) { // Cashiers
   while (1) {
     pthread_mutex_lock(&McodaClienti[id]);
     while (queuelength(codaCassa[id], id) == 0 && exittime == 0) {
-      if (sigquit == 1)
+      if (sig_QUIT == 1)
         exittime = 1;
       if (sigUPCassaExit == 1)
         exittime = 1;
@@ -404,7 +392,7 @@ void *smcheckout(void *arg) { // Cashiers
         }
         pthread_cond_wait(&CcodaClientiNotEmpty[id], &McodaClienti[id]);
       }
-      if (sigquit == 1)
+      if (sig_QUIT == 1)
         exittime = 1;
       if (sigUPCassaExit == 1)
         exittime = 1;
@@ -459,7 +447,7 @@ void *smcheckout(void *arg) { // Cashiers
         exittime = 1;
       pthread_mutex_unlock(&MChiudiCassa[id]);
     }
-    if (exittime == 1 || sigquit == 1) {
+    if (exittime == 1 || sig_QUIT == 1) {
       codaCassa[id]->queueopen = 0;
       pthread_mutex_unlock(&McodaClienti[id]);
       if (pthread_join(clock, NULL) == -1) {
@@ -531,17 +519,17 @@ void *DirectorSMcontrol(void *arg) {
   int closeoropen = 0; // One cicle director controls queue to close, in the
                        // other director controls queue to open
 
-  while (sigquit != 1 && sighup != 1) {
+  while (sig_QUIT != 1 && sig_HUP != 1) {
     check1 = 0;
     check2 = 0;
     pthread_mutex_lock(&MupdateCasse);
     while (check1 < globalParamSupermercato->S1 && check2 == 0 &&
-           sigquit != 1 && sighup != 1) {
+           sig_QUIT != 1 && sig_HUP != 1) {
 
-      if (sigquit != 1 && sighup != 1) {
+      if (sig_QUIT != 1 && sig_HUP != 1) {
         pthread_cond_wait(&CupdateCasse, &MupdateCasse);
       }
-      if (sigquit != 1 && sighup != 1) {
+      if (sig_QUIT != 1 && sig_HUP != 1) {
         check = 0;
         queueopen = 0;
         counter1 = 0; // Number of cashier that have updated queue's length
@@ -592,7 +580,7 @@ void *DirectorSMcontrol(void *arg) {
       pthread_mutex_unlock(&McassaUpdateInfo[i]);
     }
 
-    if (sigquit != 1 && sighup != 1) {
+    if (sig_QUIT != 1 && sig_HUP != 1) {
 
       counter = 0; // Number of queues just closed
       j = 0;       // index to cicle
@@ -660,7 +648,7 @@ void *DirectorSMcontrol(void *arg) {
     }
   }
 
-  if (sigquit == 1) {
+  if (sig_QUIT == 1) {
     for (int i = 0; i < globalParamSupermercato->K;
          i++) { // To wake up cashiers in case of a SIGQUIT and they are in wait
       pthread_mutex_lock(&McodaClienti[i]);
@@ -743,7 +731,7 @@ void *DirectorCustomersControl(void *arg) {
       }
       if (activecustomers ==
               (globalParamSupermercato->C - globalParamSupermercato->E) &&
-          sighup != 1 && sigquit != 1)
+          sig_HUP != 1 && sig_QUIT != 1)
         break;
     }
     pthread_mutex_unlock(&McodaDirettore);
@@ -752,7 +740,7 @@ void *DirectorCustomersControl(void *arg) {
     // them enter the supermarket
     if (activecustomers ==
             (globalParamSupermercato->C - globalParamSupermercato->E) &&
-        sighup != 1 && sigquit != 1) {
+        sig_HUP != 1 && sig_QUIT != 1) {
       mallocsize += globalParamSupermercato->E;
       if ((cs = realloc(cs, mallocsize * sizeof(pthread_t))) == NULL) {
         fprintf(stderr, "1° realloc failed");
@@ -825,9 +813,13 @@ void *directorT(void *arg) {
   // return (void*) csdata;
 }
 
+void SetSignalHandler();
+static void SignalHandeler(int SignalNumber);
+
 int main(int argc, char const *argv[]) {
   supermarketcheckout *smdata;
-  struct sigaction s;
+
+  SetSignalHandler();
   globalTime = time(NULL);
   long totalcustomers = 0, totalproducts = 0;
 
@@ -861,17 +853,9 @@ int main(int argc, char const *argv[]) {
     fprintf(stderr, "malloc fallita\n");
     exit(EXIT_FAILURE);
   }
+  // Aggiungo la maschera per i segnali
 
-  memset(&s, 0, sizeof(s));
-  s.sa_handler = handler;
-  if (sigaction(SIGHUP, &s, NULL) == -1) {
-    fprintf(stderr, "Handler error");
-  }
-  if (sigaction(SIGQUIT, &s, NULL) == -1) {
-    fprintf(stderr, "Handler error");
-  }
-
-  if ((statsfile = fopen("statsfile.log", "w")) == NULL) {
+  if ((fileLog = fopen("statfile.log", "w")) == NULL) {
     fprintf(stderr, "Stats file opening failed");
     exit(EXIT_FAILURE);
   }
@@ -889,7 +873,7 @@ int main(int argc, char const *argv[]) {
   }
 
   for (int i = 0; i < globalParamSupermercato->K; i++) {
-    fprintf(statsfile,
+    fprintf(fileLog,
             "CASHIER -> | id:%d | n. bought products:%d | n. customers:%d | "
             "time opened: %0.3f s | avg service time: %0.3f s | number of "
             "clousure:%d |\n",
@@ -900,18 +884,53 @@ int main(int argc, char const *argv[]) {
     totalproducts += smdata[i].nproducts;
   }
 
-  fprintf(statsfile, "TOTAL CUSTOMERS SERVED: %ld\n", totalcustomers);
-  fprintf(statsfile, "TOTAL PRODUCTS BOUGHT: %ld\n", totalproducts);
+  fprintf(fileLog, "TOTAL CUSTOMERS SERVED: %ld\n", totalcustomers);
+  fprintf(fileLog, "TOTAL PRODUCTS BOUGHT: %ld\n", totalproducts);
 
   printf("PROGRAM FINISHED\n");
 
-  fclose(statsfile);
+  fclose(fileLog);
   free(smdata);
   QueueFree();
   free(globalParamSupermercato);
   return 0;
 }
 
+void SetSignalHandler() {
+  struct sigaction sigAct;
+  memset(&sigAct, 0, sizeof(sigAct));
+  sigAct.sa_handler = SignalHandeler;
+
+  if (sigaction(SIGHUP, &sigAct, NULL) == -1) {
+    fprintf(stderr, "Handler error");
+  }
+  if (sigaction(SIGQUIT, &sigAct, NULL) == -1) {
+    fprintf(stderr, "Handler error");
+  }
+}
+
+static void SignalHandeler(int SignalNumber) {
+  switch (SignalNumber) {
+  case SIGHUP:
+    sig_HUP = 1;
+    fprintf(stdout, "[SignalHandeler] SIGHUP ricevuto\n\t\t\tIl supermercato "
+                    "sta per chiudere.\n");
+    fflush(stdout);
+    break;
+  case SIGQUIT:
+    sig_QUIT = 1;
+    fprintf(stdout, "[SignalHandeler] SIGQUIT ricevuto\n\t\t\tIl "
+                    "supermermercato è stato chiuso malamente.\n");
+    fflush(stdout);
+    break;
+  default:
+    fprintf(stderr,
+            "[SignalHandeler] Errore nella SignalHandeler, segnale %d non "
+            "riconosciuto.\n",
+            SignalNumber);
+    break;
+  }
+}
 void CreateQueueManagement() {
 
   // Creating queues for the K supermarket checkouts
