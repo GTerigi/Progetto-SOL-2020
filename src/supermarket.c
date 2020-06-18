@@ -15,8 +15,8 @@
 
 #include "./../lib/queue.h"
 typedef struct infoCassa_ {
-  int id;
-  int nproducts;
+  int IDcassa;
+  int prodElaborati;
   int ncustomers;
   int time;
   float servicetime;
@@ -100,13 +100,13 @@ void CreateQueueManagement();
 void QueueFree();
 
 void *clockT(void *arg) {
-  int id = (int)(intptr_t)arg;
+  int IDcassa = (int)(intptr_t)arg;
   int exittime = 0;
   while (1) {
-    pthread_mutex_lock(&MChiudiCassa[id]);
-    if (aChiudiCassa[id] == 1)
+    pthread_mutex_lock(&MChiudiCassa[IDcassa]);
+    if (aChiudiCassa[IDcassa] == 1)
       exittime = 1;
-    pthread_mutex_unlock(&MChiudiCassa[id]);
+    pthread_mutex_unlock(&MChiudiCassa[IDcassa]);
     if (exittime != 1) {
       struct timespec t = {(globalParamSupermercato->directornews / 1000),
                            ((globalParamSupermercato->directornews % 1000) *
@@ -114,30 +114,32 @@ void *clockT(void *arg) {
                                        // ms to update the director
       nanosleep(&t, NULL);             // Sleeping randomtime mseconds
     }
-    pthread_mutex_lock(&MChiudiCassa[id]);
-    if (aChiudiCassa[id] == 1)
+    pthread_mutex_lock(&MChiudiCassa[IDcassa]);
+    if (aChiudiCassa[IDcassa] == 1)
       exittime = 1;
-    pthread_mutex_unlock(&MChiudiCassa[id]);
+    pthread_mutex_unlock(&MChiudiCassa[IDcassa]);
     if (exittime != 1 && sig_QUIT == 0 && sig_HUP == 0) {
-      pthread_mutex_lock(&MlengthCode[id]);
-      pthread_mutex_lock(&McodaClienti[id]);
-      lenghtCode[id] = queuelength(codaCassa[id], id); // Update queue length
+      pthread_mutex_lock(&MlengthCode[IDcassa]);
+      pthread_mutex_lock(&McodaClienti[IDcassa]);
+      lenghtCode[IDcassa] =
+          queuelength(codaCassa[IDcassa], IDcassa); // Update queue length
       fflush(stdout);
-      pthread_mutex_unlock(&McodaClienti[id]);
-      pthread_mutex_unlock(&MlengthCode[id]);
+      pthread_mutex_unlock(&McodaClienti[IDcassa]);
+      pthread_mutex_unlock(&MlengthCode[IDcassa]);
 
       pthread_mutex_lock(&MupdateCasse);
-      pthread_mutex_lock(&McassaUpdateInfo[id]);
-      aUpdateCassa[id] = 1; // To warn the director that the cashier "id" has
-                            // updated the queue's length info
-      pthread_mutex_unlock(&McassaUpdateInfo[id]);
+      pthread_mutex_lock(&McassaUpdateInfo[IDcassa]);
+      aUpdateCassa[IDcassa] =
+          1; // To warn the director that the cashier "IDcassa" has
+             // updated the queue's length info
+      pthread_mutex_unlock(&McassaUpdateInfo[IDcassa]);
 
-      pthread_mutex_lock(&MChiudiCassa[id]);
-      if (aChiudiCassa[id] == 1)
+      pthread_mutex_lock(&MChiudiCassa[IDcassa]);
+      if (aChiudiCassa[IDcassa] == 1)
         exittime = 1;
       if (exittime != 1)
         pthread_cond_signal(&CupdateCasse); // Wake up the director
-      pthread_mutex_unlock(&MChiudiCassa[id]);
+      pthread_mutex_unlock(&MChiudiCassa[IDcassa]);
 
       pthread_mutex_unlock(&MupdateCasse);
     } else {
@@ -282,14 +284,14 @@ void *smcheckout(void *arg) { // Cashiers
 
   infoCassa *smdata = ((infoCassa *)arg);
   smdata->hasbeenopened = 1;
-  int id = smdata->id - 1;
-  unsigned int seed = smdata->id + globalTime; // Creating seed
+  int IDcassa = smdata->IDcassa - 1;
+  unsigned int seed = smdata->IDcassa + globalTime; // Creating seed
   long randomtime, servicetime;
   int exittime = 0; // If the cashier has to close the smcheckout
 
-  pthread_mutex_lock(&McodaClienti[id]);
-  codaCassa[id]->queueopen = 1;
-  pthread_mutex_unlock(&McodaClienti[id]);
+  pthread_mutex_lock(&McodaClienti[IDcassa]);
+  codaCassa[IDcassa]->queueopen = 1;
+  pthread_mutex_unlock(&McodaClienti[IDcassa]);
 
   if (smdata->randomtime == 0) {
     while ((randomtime = rand_r(&seed) % 80) < 20)
@@ -298,40 +300,41 @@ void *smcheckout(void *arg) { // Cashiers
   }
 
   pthread_t clock;
-  if (pthread_create(&clock, NULL, clockT, (void *)(intptr_t)(id)) != 0) {
-    fprintf(stderr, "clock %d: thread creation, failed!", id);
+  if (pthread_create(&clock, NULL, clockT, (void *)(intptr_t)(IDcassa)) != 0) {
+    fprintf(stderr, "clock %d: thread creation, failed!", IDcassa);
     exit(EXIT_FAILURE);
   }
 
   while (1) {
-    pthread_mutex_lock(&McodaClienti[id]);
-    while (queuelength(codaCassa[id], id) == 0 && exittime == 0) {
+    pthread_mutex_lock(&McodaClienti[IDcassa]);
+    while (queuelength(codaCassa[IDcassa], IDcassa) == 0 && exittime == 0) {
       if (sig_QUIT == 1)
         exittime = 1;
       if (sigUPCassaExit == 1)
         exittime = 1;
-      pthread_mutex_lock(&MChiudiCassa[id]);
-      if (aChiudiCassa[id] == 1)
+      pthread_mutex_lock(&MChiudiCassa[IDcassa]);
+      if (aChiudiCassa[IDcassa] == 1)
         exittime = 1;
-      pthread_mutex_unlock(&MChiudiCassa[id]);
+      pthread_mutex_unlock(&MChiudiCassa[IDcassa]);
       if (exittime != 1) {
-        pthread_cond_wait(&CcodaClientiNotEmpty[id], &McodaClienti[id]);
+        pthread_cond_wait(&CcodaClientiNotEmpty[IDcassa],
+                          &McodaClienti[IDcassa]);
       }
       if (sig_QUIT == 1)
         exittime = 1;
       if (sigUPCassaExit == 1)
         exittime = 1;
-      pthread_mutex_lock(&MChiudiCassa[id]);
-      if (aChiudiCassa[id] == 1)
+      pthread_mutex_lock(&MChiudiCassa[IDcassa]);
+      if (aChiudiCassa[IDcassa] == 1)
         exittime = 1;
-      pthread_mutex_unlock(&MChiudiCassa[id]);
+      pthread_mutex_unlock(&MChiudiCassa[IDcassa]);
     } // Wait until the queue is empty or the queue has to close
     if (exittime != 1) {
       Cliente *qcs = removecustomer(
-          &codaCassa[id],
-          id); // Serves the customer that is the first in the queue
+          &codaCassa[IDcassa],
+          IDcassa); // Serves the customer that is the first in the queue
 
-      pthread_mutex_unlock(&McodaClienti[id]);
+      pthread_mutex_unlock(&McodaClienti[IDcassa]);
       // Number of time to scan the product and let the customer pay
 
       servicetime =
@@ -341,7 +344,7 @@ void *smcheckout(void *arg) { // Cashiers
       nanosleep(&t, NULL); // Sleeping randomtime mseconds
 
       // Signal to the customer that the cashier has done
-      smdata->nproducts += qcs->nproducts;
+      smdata->prodElaborati += qcs->nproducts;
       smdata->ncustomers++;
       // printf("%f",((smdata->servicetime*smdata->ncustomers)+servicetime)/smdata->ncustomers++);
       // printf("%ld \n",servicetime);
@@ -349,31 +352,31 @@ void *smcheckout(void *arg) { // Cashiers
           smdata->servicetime +
           ((servicetime - (smdata->servicetime)) / smdata->ncustomers);
       qcs->queuedone = 1;
-      pthread_mutex_lock(&McodaClienti[id]);
-      pthread_cond_broadcast(&CcodaClienti[id]);
+      pthread_mutex_lock(&McodaClienti[IDcassa]);
+      pthread_cond_broadcast(&CcodaClienti[IDcassa]);
 
-      pthread_mutex_lock(&MChiudiCassa[id]);
-      if (aChiudiCassa[id] == 1)
+      pthread_mutex_lock(&MChiudiCassa[IDcassa]);
+      if (aChiudiCassa[IDcassa] == 1)
         exittime = 1;
-      pthread_mutex_unlock(&MChiudiCassa[id]);
+      pthread_mutex_unlock(&MChiudiCassa[IDcassa]);
     }
     if (exittime == 1 || sig_QUIT == 1) {
-      codaCassa[id]->queueopen = 0;
-      pthread_mutex_unlock(&McodaClienti[id]);
+      codaCassa[IDcassa]->queueopen = 0;
+      pthread_mutex_unlock(&McodaClienti[IDcassa]);
       if (pthread_join(clock, NULL) == -1) {
         fprintf(stderr, "DirectorSMControl: thread join, failed!");
       }
 
-      pthread_mutex_lock(&MChiudiCassa[id]);
-      aChiudiCassa[id] = 0;
-      pthread_mutex_unlock(&MChiudiCassa[id]);
+      pthread_mutex_lock(&MChiudiCassa[IDcassa]);
+      aChiudiCassa[IDcassa] = 0;
+      pthread_mutex_unlock(&MChiudiCassa[IDcassa]);
 
-      pthread_mutex_lock(&McodaClienti[id]);
+      pthread_mutex_lock(&McodaClienti[IDcassa]);
 
-      pthread_cond_broadcast(&CcodaClienti[id]);
-      resetQueue(&codaCassa[id], id);
+      pthread_cond_broadcast(&CcodaClienti[IDcassa]);
+      resetQueue(&codaCassa[IDcassa], IDcassa);
 
-      pthread_mutex_unlock(&McodaClienti[id]);
+      pthread_mutex_unlock(&McodaClienti[IDcassa]);
 
       clock_gettime(CLOCK_REALTIME, &spec2);
       time2 = (spec2.tv_sec) * 1000 + (spec2.tv_nsec) / 1000000;
@@ -381,7 +384,7 @@ void *smcheckout(void *arg) { // Cashiers
       smdata->nclosure++;
       return NULL;
     }
-    pthread_mutex_unlock(&McodaClienti[id]);
+    pthread_mutex_unlock(&McodaClienti[IDcassa]);
   }
 }
 
@@ -720,7 +723,7 @@ int main(int argc, char const *argv[]) {
   }
   // Aggiungo la maschera per i segnali
 
-  if ((fileLog = fopen("statfile.log", "w")) == NULL) {
+  if ((fileLog = fopen("statsfile.log", "w")) == NULL) {
     fprintf(stderr, "Stats file opening failed");
     exit(EXIT_FAILURE);
   }
@@ -739,14 +742,14 @@ int main(int argc, char const *argv[]) {
 
   for (int i = 0; i < globalParamSupermercato->K; i++) {
     fprintf(fileLog,
-            "CASHIER -> | id:%d | n. bought products:%d | n. customers:%d | "
+            "CASHIER -> | ID:%d | n. bought products:%d | n. customers:%d | "
             "time opened: %0.3f s | avg service time: %0.3f s | number of "
             "clousure:%d |\n",
-            Casse[i].id, Casse[i].nproducts, Casse[i].ncustomers,
+            Casse[i].IDcassa, Casse[i].prodElaborati, Casse[i].ncustomers,
             (double)Casse[i].time / 1000, Casse[i].servicetime / 1000,
             Casse[i].nclosure);
     totalcustomers += Casse[i].ncustomers;
-    totalproducts += Casse[i].nproducts;
+    totalproducts += Casse[i].prodElaborati;
   }
 
   fprintf(fileLog, "TOTAL CUSTOMERS SERVED: %ld\n", totalcustomers);
@@ -941,8 +944,8 @@ void QueueFree() {
 }
 
 void initInfoCassa(infoCassa *sm, int i) {
-  sm->id = (i + 1);
-  sm->nproducts = 0;
+  sm->IDcassa = (i + 1);
+  sm->prodElaborati = 0;
   sm->ncustomers = 0;
   sm->time = 0;
   sm->servicetime = 0;
@@ -952,8 +955,8 @@ void initInfoCassa(infoCassa *sm, int i) {
 }
 
 void printsm(infoCassa sm) {
-  printf("%d %d %d %d %f %d\n", sm.id, sm.nproducts, sm.ncustomers, sm.time,
-         sm.servicetime, sm.nclosure);
+  printf("%d %d %d %d %f %d\n", sm.IDcassa, sm.prodElaborati, sm.ncustomers,
+         sm.time, sm.servicetime, sm.nclosure);
 }
 
 int confcheck(config *globalParamSupermercato) {
