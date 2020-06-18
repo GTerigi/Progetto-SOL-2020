@@ -1,7 +1,5 @@
 #define _POSIX_C_SOURCE 199309L
 
-#include "./../lib/customer.h"
-#include "./../lib/queue.h"
 #include <errno.h>
 #include <inttypes.h>
 #include <math.h>
@@ -19,7 +17,31 @@
 #define DEBUG 0
 #endif
 #define DEBUG_PRINT(x) printf x
+typedef struct customer {
+  int id;
+  int nproducts;
+  int time;
+  int timeq;
+  int queuechecked;
+  int queuedone;
+  int exitok;
+} customer;
 
+void setupcs(customer *cs, int i) {
+  cs->id = (i + 1);
+  cs->nproducts = 0;
+  cs->time = 0;
+  cs->timeq = 0;
+  cs->queuedone = 0;
+  cs->queuechecked = 0;
+  cs->exitok = 0;
+}
+
+void printcs(customer cs) {
+  printf("%d %d %d %d %d %d \n", cs.id, cs.nproducts, cs.time, cs.timeq,
+         cs.queuechecked, cs.queuedone);
+}
+#include "./../lib/queue.h"
 typedef struct supermarketcheckout {
   int id;
   int nproducts;
@@ -795,22 +817,20 @@ int main(int argc, char const *argv[]) {
   t = time(NULL);
   long totalcustomers = 0, totalproducts = 0;
 
-  if (argc != 2) {
-    fprintf(stderr, "use: %s /testfile/config.txt \n", argv[0]);
+  if (argc != 2 && argc != 1) {
+    fprintf(stderr, "Errore: Usare %s {Path/To/config.txt}\n", argv[0]);
     exit(EXIT_FAILURE);
   }
 
-  if (strcmp(argv[1], "config.txt") == 0) {
+  if (argc == 2) {
     // Parameter's configure
     if ((cf = test(argv[1])) == NULL) {
       exit(EXIT_FAILURE);
     }
   } else {
-    fprintf(stderr,
-            "%s: You need to insert the config file as argoument: "
-            "/testfile/config.txt \n",
-            argv[0]);
-    exit(EXIT_FAILURE);
+    if ((cf = test("config.txt")) == NULL) {
+      exit(EXIT_FAILURE);
+    }
   }
 
   CreateQueueManagement(); // Create queues and mutex/condition vars to control
