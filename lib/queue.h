@@ -1,6 +1,34 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+typedef struct cliente_
+{
+    int id;
+    int nproducts;
+    int time;
+    int timeq;
+    int queuechecked;
+    int queuedone;
+    int exitok;
+} Cliente;
+
+void setupcs(Cliente *cs, int i)
+{
+    cs->id = (i + 1);
+    cs->nproducts = 0;
+    cs->time = 0;
+    cs->timeq = 0;
+    cs->queuedone = 0;
+    cs->queuechecked = 0;
+    cs->exitok = 0;
+}
+
+void printcs(Cliente cs)
+{
+    printf("%d %d %d %d %d %d \n", cs.id, cs.nproducts, cs.time, cs.timeq,
+           cs.queuechecked, cs.queuedone);
+}
+
 typedef struct queue
 {
     struct queuenode *head;
@@ -9,7 +37,7 @@ typedef struct queue
 
 typedef struct queuenode
 {
-    customer *cs;
+    Cliente *cs;
     struct queuenode *next;
 } queuenode;
 
@@ -23,7 +51,7 @@ queue *createqueues(int id)
     return q;
 }
 
-int joinqueue(queue **qs, customer **cs, int nqueue)
+int joinqueue(queue **qs, Cliente **cs, int nqueue)
 {
     queuenode *q;
     if ((q = malloc(sizeof(queuenode))) == NULL)
@@ -45,11 +73,11 @@ int joinqueue(queue **qs, customer **cs, int nqueue)
     return 1;
 }
 
-customer *removecustomer(queue **qs, int nqueue)
+Cliente *removecustomer(queue **qs, int nqueue)
 {
     queuenode *q = (*qs)->head;
     (*qs)->head = ((*qs)->head)->next;
-    customer *tmp = q->cs;
+    Cliente *tmp = q->cs;
     free(q);
     return tmp;
 }

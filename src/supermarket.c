@@ -13,30 +13,6 @@
 
 #define MAX_LEN 256
 
-typedef struct customer {
-  int id;
-  int nproducts;
-  int time;
-  int timeq;
-  int queuechecked;
-  int queuedone;
-  int exitok;
-} customer;
-
-void setupcs(customer *cs, int i) {
-  cs->id = (i + 1);
-  cs->nproducts = 0;
-  cs->time = 0;
-  cs->timeq = 0;
-  cs->queuedone = 0;
-  cs->queuechecked = 0;
-  cs->exitok = 0;
-}
-
-void printcs(customer cs) {
-  printf("%d %d %d %d %d %d \n", cs.id, cs.nproducts, cs.time, cs.timeq,
-         cs.queuechecked, cs.queuedone);
-}
 #include "./../lib/queue.h"
 typedef struct infoCassa_ {
   int id;
@@ -190,17 +166,16 @@ void *customerT(void *arg) {
                 &spec); // Timestamp when customer enters the supermarket
   time1 = (spec.tv_sec) * 1000 + (spec.tv_nsec) / 1000000;
 
-  customer *cs = malloc(sizeof(customer)); // Customer data
+  Cliente *cs = malloc(sizeof(Cliente));   // Cliente data
   setupcs(cs, (int)(intptr_t)(arg));       // Set up struct
-  int id = cs->id;                         // ID CUSTOMER
   unsigned int seed = cs->id + globalTime; // Creating seed
   long randomtime;                         // Random time to buy products
   int nqueue;                              // Queue chosen
   int check;                               // If chosen a valid queue
   int changequeue = 0; // If the queue has been closed and need to change queue
   int change =
-      0; // Controls if the customer is switching supermarket checkout or not
-  // Customer's buy time
+      0; // Controls if the Cliente is switching supermarket checkout or not
+  // Cliente's buy time
   cs->nproducts = rand_r(&seed) % (globalParamSupermercato->P);
   // Random number of products: 0<nproducts<=P
   while ((randomtime = rand_r(&seed) % (globalParamSupermercato->T)) < 10)
@@ -241,15 +216,14 @@ void *customerT(void *arg) {
         }
         pthread_cond_signal(
             &CcodaClientiNotEmpty[nqueue]); // Signal to the queue to warn
-                                            // that a new customer is in queue
+                                            // that a new Cliente is in queue
         while ((cs->queuedone) == 0 &&
-               changequeue == 0) { // While the customer hasnt paid or needs to
+               changequeue == 0) { // While the Cliente hasnt paid or needs to
                                    // change queue 'cause it has been closed
           pthread_cond_wait(&CcodaClienti[nqueue], &McodaClienti[nqueue]);
           if (codaCassa[nqueue]->queueopen == 0)
-            changequeue =
-                1; // If the customer has been waken and he hasn't done the
-                   // queue --> sm closed and changes the queue
+            changequeue = 1; // If the Cliente has been waken and he hasn't done
+                             // the queue --> sm closed and changes the queue
         }
 
         // DA IMPLEMENTARE: SE SIGQUIT SETTATO -> THREAD EXIT
@@ -260,7 +234,7 @@ void *customerT(void *arg) {
     } while (cs->queuedone == 0);
     if (time3 != -1)
       clock_gettime(CLOCK_REALTIME,
-                    &spec4); // Get timestamp when customer has paid
+                    &spec4); // Get timestamp when Cliente has paid
     time4 = (spec4.tv_sec) * 1000 + (spec4.tv_nsec) / 1000000;
   }
 
@@ -286,7 +260,7 @@ void *customerT(void *arg) {
 
   pthread_mutex_lock(&Mfile);
   fprintf(fileLog,
-          "CUSTOMER -> | id customer:%d | n. bought products:%d | time in the "
+          "Cliente -> | id Cliente:%d | n. bought products:%d | time in the "
           "supermarket: %0.3f s | time in queue: %0.3f s | n. queues checked: "
           "%d | \n",
           cs->id, cs->nproducts, (double)cs->time / 1000,
@@ -353,7 +327,7 @@ void *smcheckout(void *arg) { // Cashiers
       pthread_mutex_unlock(&MChiudiCassa[id]);
     } // Wait until the queue is empty or the queue has to close
     if (exittime != 1) {
-      customer *qcs = removecustomer(
+      Cliente *qcs = removecustomer(
           &codaCassa[id],
           id); // Serves the customer that is the first in the queue
 
@@ -619,7 +593,7 @@ void *DirectorCustomersControl(void *arg) {
                           &McodaDirettore); // Get waken when a customer wants
                                             // to get out of the supermarket
       // Say to the customer that can exit
-      customer *qcs = removecustomer(&codaDirettore, -1);
+      Cliente *qcs = removecustomer(&codaDirettore, -1);
       qcs->exitok = 1;
       activecustomers--;
       pthread_cond_signal(&CcodaDirettoreClienteEsce);
