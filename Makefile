@@ -3,8 +3,8 @@ C_FLAGS := -Wall -lpthread #-g  -Wextra -pedantic -std=gnu99
 
 BIN		:= bin
 SRC		:= src
-INCLUDE	:= include
-LIB		:= include
+INCLUDE	:= lib
+LIB		:= lib
 
 #LIBRARIES	:= -lFunzioni
 
@@ -19,7 +19,8 @@ $(BIN)/%.o: $(SRC)/%.c
 
 clear:
 	-rm $(BIN)/*
-	-rm -f ./supermarket ./statsfile.log supermarket.PID
+	-rm -f  ./statsfile.log supermarket.PID
+	-clear
 
 test:
 	(./bin/supermarket.o & echo $$! > supermarket.PID) &
