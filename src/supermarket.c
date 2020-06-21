@@ -50,10 +50,17 @@ static queue *codaDirettore;
 // === CASSE === //
 
 void *updateDirT(void *arg);
+void *mainCassa(void *arg);
 
 // === CLIENTE === //
 
-void *customerT(void *arg);
+void *mainCliente(void *arg);
+
+// === UTILITY === //
+
+void SetSignalHandler();
+static void SignalHandeler(int SignalNumber);
+long msecond_timespec_diff(struct timespec *start, struct timespec *end);
 
 int confcheck(config *globalParamSupermercato);
 config *test(const char *configfile);
@@ -61,123 +68,6 @@ config *test(const char *configfile);
 
 void CreateQueueManagement();
 void QueueFree();
-
-void *smcheckout(void *arg) { // Cashiers
-
-  struct timespec spec;
-  struct timespec spec2;
-  long time1, time2;
-
-  clock_gettime(CLOCK_REALTIME, &spec); // Timestamp of the smcheckout open
-  time1 = (spec.tv_sec) * 1000 + (spec.tv_nsec) / 1000000;
-
-  infoCassa *smdata = ((infoCassa *)arg);
-  smdata->HBO = 1;
-  int IDcassa = smdata->IDcassa - 1;
-  unsigned int seed = smdata->IDcassa + globalTime; // Creating seed
-  long randomtime, servicetime;
-  int exittime = 0; // If the cashier has to close the smcheckout
-
-  pthread_mutex_lock(&McodaClienti[IDcassa]);
-  codaCassa[IDcassa]->queueopen = 1;
-  pthread_mutex_unlock(&McodaClienti[IDcassa]);
-
-  if (smdata->tempoElabProdotto == 0) {
-    while ((randomtime = rand_r(&seed) % 80) < 20)
-      ; // Random number of time interval: 20-80
-    smdata->tempoElabProdotto = randomtime;
-  }
-
-  pthread_t clock;
-  if (pthread_create(&clock, NULL, updateDirT, (void *)(intptr_t)(IDcassa)) !=
-      0) {
-    fprintf(stderr, "clock %d: thread creation, failed!", IDcassa);
-    exit(EXIT_FAILURE);
-  }
-
-  while (1) {
-    pthread_mutex_lock(&McodaClienti[IDcassa]);
-    while (codaCassa[IDcassa]->length == 0 && exittime == 0) {
-      if (sig_QUIT == 1)
-        exittime = 1;
-      if (sigUPCassaExit == 1)
-        exittime = 1;
-      pthread_mutex_lock(&MChiudiCassa[IDcassa]);
-      if (aChiudiCassa[IDcassa] == 1)
-        exittime = 1;
-      pthread_mutex_unlock(&MChiudiCassa[IDcassa]);
-      if (exittime != 1) {
-        pthread_cond_wait(&CcodaClientiNotEmpty[IDcassa],
-                          &McodaClienti[IDcassa]);
-      }
-      if (sig_QUIT == 1)
-        exittime = 1;
-      if (sigUPCassaExit == 1)
-        exittime = 1;
-      pthread_mutex_lock(&MChiudiCassa[IDcassa]);
-      if (aChiudiCassa[IDcassa] == 1)
-        exittime = 1;
-      pthread_mutex_unlock(&MChiudiCassa[IDcassa]);
-    } // Wait until the queue is empty or the queue has to close
-    if (exittime != 1) {
-      Cliente *qcs = removecustomer(
-          &codaCassa[IDcassa],
-          IDcassa); // Serves the customer that is the first in the queue
-
-      pthread_mutex_unlock(&McodaClienti[IDcassa]);
-      // Number of time to scan the product and let the customer pay
-
-      servicetime =
-          smdata->tempoElabProdotto +
-          (globalParamSupermercato->S_timeElabCassa * qcs->ProdComprati);
-      struct timespec t = {(servicetime / 1000),
-                           ((servicetime % 1000) * 1000000)};
-      nanosleep(&t, NULL); // Sleeping randomtime mseconds
-
-      // Signal to the customer that the cashier has done
-      smdata->prodElaborati += qcs->ProdComprati;
-      smdata->clientiProcessati++;
-      // printf("%f",((smdata->servicetime*smdata->clientiProcessati)+servicetime)/smdata->clientiProcessati++);
-      // printf("%ld \n",servicetime);
-      smdata->tempoServizio =
-          smdata->tempoServizio +
-          ((servicetime - (smdata->tempoServizio)) / smdata->clientiProcessati);
-      qcs->uscitaCoda = 1;
-      pthread_mutex_lock(&McodaClienti[IDcassa]);
-      pthread_cond_broadcast(&CcodaClienti[IDcassa]);
-
-      pthread_mutex_lock(&MChiudiCassa[IDcassa]);
-      if (aChiudiCassa[IDcassa] == 1)
-        exittime = 1;
-      pthread_mutex_unlock(&MChiudiCassa[IDcassa]);
-    }
-    if (exittime == 1 || sig_QUIT == 1) {
-      codaCassa[IDcassa]->queueopen = 0;
-      pthread_mutex_unlock(&McodaClienti[IDcassa]);
-      if (pthread_join(clock, NULL) == -1) {
-        fprintf(stderr, "DirectorSMControl: thread join, failed!");
-      }
-
-      pthread_mutex_lock(&MChiudiCassa[IDcassa]);
-      aChiudiCassa[IDcassa] = 0;
-      pthread_mutex_unlock(&MChiudiCassa[IDcassa]);
-
-      pthread_mutex_lock(&McodaClienti[IDcassa]);
-
-      pthread_cond_broadcast(&CcodaClienti[IDcassa]);
-      resetQueue(&codaCassa[IDcassa], IDcassa);
-
-      pthread_mutex_unlock(&McodaClienti[IDcassa]);
-
-      clock_gettime(CLOCK_REALTIME, &spec2);
-      time2 = (spec2.tv_sec) * 1000 + (spec2.tv_nsec) / 1000000;
-      smdata->tempoOpen += time2 - time1;
-      smdata->Nchiusure++;
-      return NULL;
-    }
-    pthread_mutex_unlock(&McodaClienti[IDcassa]);
-  }
-}
 
 void *DirectorSMcontrol(void *arg) {
 
@@ -194,17 +84,17 @@ void *DirectorSMcontrol(void *arg) {
   // Starting smopen smcheckouts!
   for (int i = 0; i < globalParamSupermercato->startCasse; i++) {
     pthread_mutex_lock(&McodaClienti[i]);
-    codaCassa[i]->queueopen = 1;
+    codaCassa[i]->aperta = 1;
     pthread_mutex_unlock(&McodaClienti[i]);
-    if (pthread_create(&smchecks[i], NULL, smcheckout,
-                       &((infoCassa *)arg)[i]) != 0) {
+    if (pthread_create(&smchecks[i], NULL, mainCassa, &((infoCassa *)arg)[i]) !=
+        0) {
       fprintf(stderr, "infoCassa %d: thread creation, failed!", i);
       exit(EXIT_FAILURE);
     }
   }
 
   int check;   // If queueopen and number of cashier that have updated are equal
-               // -> Check if close or open a smcheckout
+               // -> Check if close or open a mainCassa
   int check1;  // Counting the number of queue that has at most 1 customer
   int check2;  // Checking if there is a queue with more then
                // globalParamSupermercato->S2 customers
@@ -233,7 +123,7 @@ void *DirectorSMcontrol(void *arg) {
         for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
           pthread_mutex_lock(&McodaClienti[i]);
           pthread_mutex_lock(&MChiudiCassa[i]);
-          if (codaCassa[i]->queueopen == 1 && aChiudiCassa[i] != 1)
+          if (codaCassa[i]->aperta == 1 && aChiudiCassa[i] != 1)
             queueopen++; // Checking how much queues are open
           pthread_mutex_unlock(&MChiudiCassa[i]);
           pthread_mutex_unlock(&McodaClienti[i]);
@@ -245,14 +135,14 @@ void *DirectorSMcontrol(void *arg) {
         }
         if (queueopen == counter1)
           check++; // If queueopen and number of cashier that have updated are
-                   // equal -> Check if close or open a smcheckout
+                   // equal -> Check if close or open a mainCassa
 
         if (check != 0) { // Director checks the queues lengths to decide if
                           // close or open some sm checkouts
           for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
             pthread_mutex_lock(&MlengthCode[i]);
             pthread_mutex_lock(&McodaClienti[i]);
-            if (lenghtCode[i] <= 1 && codaCassa[i]->queueopen == 1)
+            if (lenghtCode[i] <= 1 && codaCassa[i]->aperta == 1)
               check1++; // Counting the number of queue that has at most 1
                         // customer
             pthread_mutex_unlock(&McodaClienti[i]);
@@ -285,9 +175,8 @@ void *DirectorSMcontrol(void *arg) {
                                        // of sm checkouts
           pthread_mutex_lock(&MlengthCode[j]);
           pthread_mutex_lock(&McodaClienti[j]);
-          if (lenghtCode[j] <= 1 &&
-              codaCassa[j]->queueopen ==
-                  1) { // Check if the jth queue matches the conditions to close
+          if (lenghtCode[j] <= 1 && codaCassa[j]->aperta == 1) {
+            // Check if the jth queue matches the conditions to close
             pthread_mutex_lock(&MChiudiCassa[j]);
             aChiudiCassa[j] = 1; // Set the jth queue has to close
             pthread_mutex_unlock(&MChiudiCassa[j]);
@@ -306,7 +195,7 @@ void *DirectorSMcontrol(void *arg) {
         for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
           pthread_mutex_lock(&McodaClienti[i]);
           pthread_mutex_lock(&MChiudiCassa[i]);
-          if (codaCassa[i]->queueopen == 0 && index == -1 &&
+          if (codaCassa[i]->aperta == 0 && index == -1 &&
               aChiudiCassa[i] != 1) {
             index = i;
           } // if the ith queue matches the codntions to open take the index
@@ -315,9 +204,9 @@ void *DirectorSMcontrol(void *arg) {
         }
         if (index != -1) {
           pthread_mutex_lock(&McodaClienti[index]);
-          codaCassa[index]->queueopen = 1; // Set queue open
+          codaCassa[index]->aperta = 1; // Set queue open
           pthread_mutex_unlock(&McodaClienti[index]);
-          if (pthread_create(&smchecks[index], NULL, smcheckout,
+          if (pthread_create(&smchecks[index], NULL, mainCassa,
                              &((infoCassa *)arg)[index]) !=
               0) { // Start cashier thread
             fprintf(stderr, "infoCassa %d: thread creation, failed!", index);
@@ -374,8 +263,8 @@ void *DirectorCustomersControl(void *arg) {
   }
 
   for (i = 0; i < globalParamSupermercato->C_clienti; i++) {
-    if (pthread_create(&cs[i], NULL, customerT, (void *)(intptr_t)i) != 0) {
-      fprintf(stderr, "customerT %d: thread creation, failed!", i);
+    if (pthread_create(&cs[i], NULL, mainCliente, (void *)(intptr_t)i) != 0) {
+      fprintf(stderr, "mainCliente %d: thread creation, failed!", i);
       exit(EXIT_FAILURE);
     }
   }
@@ -389,8 +278,8 @@ void *DirectorCustomersControl(void *arg) {
                           &McodaDirettore); // Get waken when a customer wants
                                             // to get out of the supermarket
       // Say to the customer that can exit
-      Cliente *qcs = removecustomer(&codaDirettore, -1);
-      qcs->possoUscire = 1;
+      Cliente *cliente = removecustomer(&codaDirettore, -1);
+      cliente->possoUscire = 1;
       activecustomers--;
       pthread_cond_signal(&CcodaDirettoreClienteEsce);
       if (activecustomers == 0) {
@@ -421,9 +310,9 @@ void *DirectorCustomersControl(void *arg) {
       j = customerscreated;
 
       for (i = 0; i < globalParamSupermercato->E_min; i++) {
-        if (pthread_create(&cs[j + i], NULL, customerT,
+        if (pthread_create(&cs[j + i], NULL, mainCliente,
                            (void *)(intptr_t)i + j) != 0) {
-          fprintf(stderr, "customerT %d: thread creation, failed!", j + i);
+          fprintf(stderr, "mainCliente %d: thread creation, failed!", j + i);
           exit(EXIT_FAILURE);
         }
         customerscreated++;
@@ -473,9 +362,6 @@ void *directorT(void *arg) {
   return NULL;
   // return (void*) csdata;
 }
-
-void SetSignalHandler();
-static void SignalHandeler(int SignalNumber);
 
 int main(int argc, char const *argv[]) {
   infoCassa *Casse;
@@ -539,7 +425,7 @@ int main(int argc, char const *argv[]) {
             "time opened: %0.3f s | avg service time: %0.3f s | number of "
             "clousure:%d |\n",
             Casse[i].IDcassa, Casse[i].prodElaborati,
-            Casse[i].clientiProcessati, (double)Casse[i].tempoOpen / 1000,
+            Casse[i].clientiProcessati, (double)Casse[i].tempoOpen / pow(10, 6),
             Casse[i].tempoServizio / 1000, Casse[i].Nchiusure);
     totalcustomers += Casse[i].clientiProcessati;
     totalproducts += Casse[i].prodElaborati;
@@ -557,41 +443,6 @@ int main(int argc, char const *argv[]) {
   return 0;
 }
 
-void SetSignalHandler() {
-  struct sigaction sigAct;
-  memset(&sigAct, 0, sizeof(sigAct));
-  sigAct.sa_handler = SignalHandeler;
-
-  if (sigaction(SIGHUP, &sigAct, NULL) == -1) {
-    fprintf(stderr, "Handler error");
-  }
-  if (sigaction(SIGQUIT, &sigAct, NULL) == -1) {
-    fprintf(stderr, "Handler error");
-  }
-}
-
-static void SignalHandeler(int SignalNumber) {
-  switch (SignalNumber) {
-  case SIGHUP:
-    sig_HUP = 1;
-    fprintf(stdout, "[SignalHandeler] SIGHUP ricevuto\n\t\t\tIl supermercato "
-                    "sta per chiudere.\n");
-    fflush(stdout);
-    break;
-  case SIGQUIT:
-    sig_QUIT = 1;
-    fprintf(stdout, "[SignalHandeler] SIGQUIT ricevuto\n\t\t\tIl "
-                    "supermermercato è stato chiuso malamente.\n");
-    fflush(stdout);
-    break;
-  default:
-    fprintf(stderr,
-            "[SignalHandeler] Errore nella SignalHandeler, segnale %d non "
-            "riconosciuto.\n",
-            SignalNumber);
-    break;
-  }
-}
 void CreateQueueManagement() {
 
   // Creating queues for the K supermarket checkouts
@@ -879,8 +730,8 @@ void *updateDirT(void *arg) {
   int cassaChiusa = 0;
 
   struct timespec timeThenUpdate = {
-      0, (globalParamSupermercato->timeNotifica * 1000)};
-  // 0s + timeNotifica*10³ ns = timeNotifica ms
+      (globalParamSupermercato->timeNotifica / 1000),
+      (globalParamSupermercato->timeNotifica % 1000) * 1000};
   while (1) {
 
     // Controllo che nel frattempo non mi abbiano chiuso la cassa
@@ -942,125 +793,315 @@ void *updateDirT(void *arg) {
   pthread_exit(NULL);
 }
 
+void *mainCassa(void *arg) {
+  struct timespec timeCreazione;
+  struct timespec timeChiusura;
+  clock_gettime(CLOCK_REALTIME, &timeCreazione);
+  // Mi segno il timestamp di creazione della Cassa
+
+  // Recupero la cassa che mi sono passato come argomento e creo il seed per la
+  // scelta random del tempo di elaborazione
+  infoCassa *thisCassa = ((infoCassa *)arg);
+  thisCassa->HBO = 1;
+  unsigned int seed = thisCassa->IDcassa + globalTime;
+  thisCassa->tempoElabProdotto = rand_r(&seed) % 80 + 20;
+
+  // index della Coda relativa a questa Cassa
+  int indexCoda = thisCassa->IDcassa - 1;
+
+  long timeElabCassa;
+  // Variabile decisionale per chiudere o meno la cassa.
+  // {0} => aperta {1} => Chiudi
+  int chiudiCassa = 0;
+
+  // Setto la coda come aperta.
+  pthread_mutex_lock(&McodaClienti[indexCoda]);
+  codaCassa[indexCoda]->aperta = 1;
+  pthread_mutex_unlock(&McodaClienti[indexCoda]);
+
+  // Setto il Thread che manda gli update al direttore
+  pthread_t threadUpdateDir;
+  if (pthread_create(&threadUpdateDir, NULL, updateDirT,
+                     (void *)(intptr_t)(indexCoda)) != 0) {
+    fprintf(stderr, "threadUpdateDir %d: Creazione del Thread Fallita",
+            indexCoda);
+    exit(EXIT_FAILURE);
+  }
+  // Core-code della cassa.
+  while (1) {
+
+    // Controllo lo stato della coda della Cassa
+    pthread_mutex_lock(&McodaClienti[indexCoda]);
+    while (codaCassa[indexCoda]->length == 0 && chiudiCassa == 0) {
+      // Controllo di non aver ricevuto nessun segnale di chiusura (supermercato
+      // o singola cassa)
+      if (sig_QUIT == 1)
+        chiudiCassa = 1;
+      if (sigUPCassaExit == 1)
+        chiudiCassa = 1;
+      pthread_mutex_lock(&MChiudiCassa[indexCoda]);
+      if (aChiudiCassa[indexCoda] == 1)
+        chiudiCassa = 1;
+      pthread_mutex_unlock(&MChiudiCassa[indexCoda]);
+
+      // Se non devo chiudere la cassa e la coda era semplicemente vuota allora
+      // aspetto
+      if (chiudiCassa != 1) {
+        pthread_cond_wait(&CcodaClientiNotEmpty[indexCoda],
+                          &McodaClienti[indexCoda]);
+      }
+
+      // Rieseguo i controlli, nel caso sia cambiato qualcosa e il controllo del
+      // while risulti negativo.
+      if (sig_QUIT == 1)
+        chiudiCassa = 1;
+      if (sigUPCassaExit == 1)
+        chiudiCassa = 1;
+      pthread_mutex_lock(&MChiudiCassa[indexCoda]);
+      if (aChiudiCassa[indexCoda] == 1)
+        chiudiCassa = 1;
+      pthread_mutex_unlock(&MChiudiCassa[indexCoda]);
+    }
+
+    // Se non sono chiuso recupero il cliente
+    if (chiudiCassa != 1) {
+      Cliente *cliente = removecustomer(&codaCassa[indexCoda], indexCoda);
+
+      pthread_mutex_unlock(&McodaClienti[indexCoda]);
+
+      // Tempo di elaborazione per il cliente corrente.
+      timeElabCassa =
+          thisCassa->tempoElabProdotto +
+          (globalParamSupermercato->S_timeElabCassa * cliente->ProdComprati);
+      struct timespec tElab = {(timeElabCassa / 1000),
+                               ((timeElabCassa % 1000) * 1000)};
+      nanosleep(&tElab, NULL);
+
+      // Aggiorno i valori della cassa  e segnalo al cliente che può uscire.
+      thisCassa->prodElaborati += cliente->ProdComprati;
+      thisCassa->clientiProcessati++;
+      thisCassa->tempoServizio = thisCassa->tempoServizio +
+                                 ((timeElabCassa - (thisCassa->tempoServizio)) /
+                                  thisCassa->clientiProcessati);
+      cliente->uscitaCoda = 1;
+      pthread_mutex_lock(&McodaClienti[indexCoda]);
+      pthread_cond_broadcast(&CcodaClienti[indexCoda]);
+
+      // Controllo se devo chiudere la cassa.
+      pthread_mutex_lock(&MChiudiCassa[indexCoda]);
+      if (aChiudiCassa[indexCoda] == 1)
+        chiudiCassa = 1;
+      pthread_mutex_unlock(&MChiudiCassa[indexCoda]);
+    }
+
+    // Controllo se la cassa è stata chiusa o se ho ricevuto un sig_QUIT
+    if (chiudiCassa == 1 || sig_QUIT == 1) {
+      // aggiorno lo stato della coda
+      codaCassa[indexCoda]->aperta = 0;
+      pthread_mutex_unlock(&McodaClienti[indexCoda]);
+
+      // Aspetto la fine del thread di update
+      if (pthread_join(threadUpdateDir, NULL) == -1) {
+        fprintf(stderr, "DirectorSMControl: thread join, failed!");
+      }
+
+      pthread_mutex_lock(&MChiudiCassa[indexCoda]);
+      aChiudiCassa[indexCoda] = 0;
+      pthread_mutex_unlock(&MChiudiCassa[indexCoda]);
+
+      pthread_mutex_lock(&McodaClienti[indexCoda]);
+
+      pthread_cond_broadcast(&CcodaClienti[indexCoda]);
+      resetQueue(&codaCassa[indexCoda], indexCoda);
+
+      pthread_mutex_unlock(&McodaClienti[indexCoda]);
+
+      clock_gettime(CLOCK_REALTIME, &timeChiusura);
+
+      thisCassa->tempoOpen +=
+          msecond_timespec_diff(&timeCreazione, &timeChiusura);
+      thisCassa->Nchiusure++;
+      return NULL;
+    }
+    pthread_mutex_unlock(&McodaClienti[indexCoda]);
+  }
+}
+
 // === CLIENTE === //
 
-void *customerT(void *arg) {
+void *mainCliente(void *arg) {
 
   struct timespec timeEntrata;
   struct timespec timeUscita;
   struct timespec timeInsideCoda;
   struct timespec timeExitCoda;
-  long timeTotMS, timeCodaMS, time3 = -1, time4 = -1;
 
-  clock_gettime(CLOCK_REALTIME,
-                &timeEntrata); // Timestamp when customer enters the supermarket
-  timeTotMS = (timeEntrata.tv_sec) * 1000 + (timeEntrata.tv_nsec) / 1000000;
+  // Recupero il timestamp di quando il cliente entra nel Supermercato
+  clock_gettime(CLOCK_REALTIME, &timeEntrata);
 
-  Cliente *cs = malloc(sizeof(Cliente));          // Cliente data
-  setupcs(cs, (int)(intptr_t)(arg));              // Set up struct
-  unsigned int seed = cs->IDcliente + globalTime; // Creating seed
-  long randomtime;     // Random tempoOpen to buy products
-  int nqueue;          // Queue chosen
-  int check;           // If chosen a valid queue
-  int changequeue = 0; // If the queue has been closed and need to change queue
-  int change =
-      0; // Controls if the Cliente is switching supermarket checkout or not
-  // Cliente's buy tempoOpen
-  cs->ProdComprati =
+  // Inizializzo le informazioni del Cliente e il suo seed personale (Per la
+  // scelta random della cassa)
+  int IDCliente = (int)(intptr_t)(arg);
+  Cliente *cliente = malloc(sizeof(Cliente));
+  initCliente(cliente, IDCliente);
+  unsigned int seed = cliente->IDcliente + globalTime;
+
+  // Alcune variabili di controllo per il thread.
+  long timeProdotti; // Tempo che il cliente impiega ad acquistare i prodotti
+  int numCodaScelta;
+  int codaOK;
+  int cambiaCoda = 0;
+  // int change = 0;
+  // Controls if the Cliente is switching supermarket checkout or not
+
+  cliente->ProdComprati =
       rand_r(&seed) % (globalParamSupermercato->P_maxProdCliente);
-  // Random number of products: 0<nproducts<=P
-  while ((randomtime =
-              rand_r(&seed) % (globalParamSupermercato->T_buyTimeCliente)) < 10)
-    ; // Random number of buy tempoOpen
-  struct timespec t = {(randomtime / 1000), ((randomtime % 1000) * 1000000)};
-  nanosleep(&t, NULL); // Sleeping randomtime mseconds
-  if ((cs->ProdComprati) != 0) {
+
+  // Genera un valore compreso tra 10 e (T_buyTimeCliente + 10), e poi lo
+  // moltiplica per il numero di prodotti acquistati. Se acquista 0 prodotti la
+  // sleep non avviene
+  timeProdotti =
+      (rand_r(&seed) % (globalParamSupermercato->T_buyTimeCliente) + 10) *
+      cliente->ProdComprati;
+  struct timespec tProd = {(timeProdotti / 1000),
+                           ((timeProdotti % 1000) * 1000)};
+  nanosleep(&tProd, NULL);
+
+  // Caso in cui ho almeno un prodotto
+  if ((cliente->ProdComprati) != 0) {
+    // Prendo il timestamp di quando incomincia la sua vita in coda.
+    clock_gettime(CLOCK_REALTIME, &timeInsideCoda);
     do {
-      changequeue = 0; // Reset change queue value
-      check = 0;
+      // Resetto i valori decisionali.
+      cambiaCoda = 0;
+      codaOK = 0;
       do {
-        nqueue = rand_r(&seed) %
-                 (globalParamSupermercato->K_cassieri); // Random queue number
-        pthread_mutex_lock(&McodaClienti[nqueue]);
-        if (codaCassa[nqueue]->queueopen != 0)
-          check = 1; // Check if the queue is open
-        pthread_mutex_unlock(&McodaClienti[nqueue]);
+        // Recupero un valore random per la coda e controllo se è aperta.
+        // In caso positivo allora la marchio come OK e vado avanti.
+        numCodaScelta = rand_r(&seed) % (globalParamSupermercato->K_cassieri);
+        pthread_mutex_lock(&McodaClienti[numCodaScelta]);
+        if (codaCassa[numCodaScelta]->aperta != 0)
+          codaOK = 1;
+        pthread_mutex_unlock(&McodaClienti[numCodaScelta]);
         if (sig_QUIT == 1)
           break;
-      } while (check == 0);
-      if (sig_QUIT != 1) {
-        pthread_mutex_lock(&McodaClienti[nqueue]);
-        if (change == 0) {
-          cs->nCodeScelte = 1;
-        } // First tempoOpen that the cs is in a queue
-        else {
-          cs->nCodeScelte++;
-        } // Not the first tempoOpen that the cs is in a queue
-        fflush(stdout);
+      } while (codaOK == 0);
 
-        clock_gettime(CLOCK_REALTIME,
-                      &timeInsideCoda); // timestamp for calculating tempoOpen
-                                        // waited in queue
-        time3 =
-            (timeInsideCoda.tv_sec) * 1000 + (timeInsideCoda.tv_nsec) / 1000000;
-        if ((joinqueue(&codaCassa[nqueue], &cs, nqueue)) ==
-            -1) { // Joining the queue chosen
-          fprintf(stderr, "malloc failed\n");
+      // Controllo se ho ricevuto il segnale di Hard-Quit
+      if (sig_QUIT != 1) {
+        pthread_mutex_lock(&McodaClienti[numCodaScelta]);
+        cliente->nCodeScelte++;
+        // Incremento il contatore delle code scelte dal Cliente
+        if ((joinqueue(&codaCassa[numCodaScelta], &cliente, numCodaScelta)) ==
+            -1) {
+          fprintf(stderr, "[mainCliente] joinqueue Fallita\n");
           exit(EXIT_FAILURE);
         }
-        pthread_cond_signal(
-            &CcodaClientiNotEmpty[nqueue]); // Signal to the queue to warn
-                                            // that a new Cliente is in queue
-        while ((cs->uscitaCoda) == 0 &&
-               changequeue == 0) { // While the Cliente hasnt paid or needs to
-                                   // change queue 'cause it has been closed
-          pthread_cond_wait(&CcodaClienti[nqueue], &McodaClienti[nqueue]);
-          if (codaCassa[nqueue]->queueopen == 0)
-            changequeue = 1; // If the Cliente has been waken and he hasn't done
-                             // the queue --> sm closed and changes the queue
+
+        // Segnala alla cassa che c'è un nuovo cliente in coda.
+        pthread_cond_signal(&CcodaClientiNotEmpty[numCodaScelta]);
+
+        // Finchè il cliente non deve cambiare coda o non è uscito aspetto.
+        while ((cliente->uscitaCoda) == 0 && cambiaCoda == 0) {
+          // Se nel frattempo la coda è stata chiusa.
+          if (codaCassa[numCodaScelta]->aperta == 0)
+            cambiaCoda = 1;
+          pthread_cond_wait(&CcodaClienti[numCodaScelta],
+                            &McodaClienti[numCodaScelta]);
         }
 
-        // DA IMPLEMENTARE: SE SIGQUIT SETTATO -> THREAD EXIT
-        pthread_mutex_unlock(&McodaClienti[nqueue]);
-        change++;
-      } else
+        pthread_mutex_unlock(&McodaClienti[numCodaScelta]);
+        // Controllo se ho ricevuto il segnale di Hard-Quit
+        if (sig_QUIT == 1) {
+          cliente->ProdComprati = 0;
+          break;
+        }
+        // Come sopra, Ho ricevuot un segnale di hard-quit
+      } else {
+        cliente->ProdComprati = 0;
         break;
-    } while (cs->uscitaCoda == 0);
-    if (time3 != -1)
-      clock_gettime(CLOCK_REALTIME,
-                    &timeExitCoda); // Get timestamp when Cliente has paid
-    time4 = (timeExitCoda.tv_sec) * 1000 + (timeExitCoda.tv_nsec) / 1000000;
+      }
+
+    } while (cliente->uscitaCoda == 0);
+    // Recupero il tempo di uscita del cliente, sia che abbia pagato sia che sia
+    // stato forzato ad uscire.
+    clock_gettime(CLOCK_REALTIME, &timeExitCoda);
   }
 
+  // Entro nella coda del Direttore per l'approvazione ad uscire.
   pthread_mutex_lock(&McodaDirettore);
-  if ((joinqueue(&codaDirettore, &cs, -1)) == -1) {
+  if ((joinqueue(&codaDirettore, &cliente, -1)) == -1) {
     fprintf(stderr, "malloc failed\n");
   }
-  pthread_cond_signal(&CcodaDirettoreNotEmpty); // Signal to the director that
-                                                // someone wants to exit
-  while (cs->possoUscire != 1) {
+
+  // Segnalo al Direttore che ha qualcuno in coda e aspetto la sua conferma.
+  pthread_cond_signal(&CcodaDirettoreNotEmpty);
+  while (cliente->possoUscire != 1) {
     pthread_cond_wait(&CcodaDirettoreClienteEsce, &McodaDirettore);
-  } // While director doesnt allow the exit --> wait
+  }
   pthread_mutex_unlock(&McodaDirettore);
-  if (cs->uscitaCoda != 1)
-    cs->ProdComprati = 0;
+  if (cliente->uscitaCoda != 1)
+    cliente->ProdComprati = 0;
 
-  clock_gettime(CLOCK_REALTIME,
-                &timeUscita); // Timestamp of the exit from the supermarket
-  timeCodaMS = (timeUscita.tv_sec) * 1000 + (timeUscita.tv_nsec) / 1000000;
-  cs->tempoInside = timeCodaMS - timeTotMS; // Time passed in the supermarket
-  if (time3 != -1 && time4 != -1)
-    cs->tempoCoda = time4 - time3; // Time passed in queue
+  // timestamp dell'uscita dal supermercato.
+  clock_gettime(CLOCK_REALTIME, &timeUscita);
 
+  cliente->tempoInside = msecond_timespec_diff(&timeEntrata, &timeUscita);
+  cliente->tempoCoda = msecond_timespec_diff(&timeInsideCoda, &timeExitCoda);
+  fflush(stdout);
   pthread_mutex_lock(&Mfile);
   fprintf(fileLog,
           "Cliente -> | id Cliente:%d | n. bought products:%d | time in the "
           "supermarket: %0.3f s | time in queue: %0.3f s | n. queues checked: "
           "%d | \n",
-          cs->IDcliente, cs->ProdComprati, (double)cs->tempoInside / 1000,
-          (double)cs->tempoCoda / 1000, cs->nCodeScelte);
+          cliente->IDcliente, cliente->ProdComprati,
+          (double)cliente->tempoInside / (pow(10, 6)),
+          (double)cliente->tempoCoda / (pow(10, 6)), cliente->nCodeScelte);
+  fflush(stdout);
   pthread_mutex_unlock(&Mfile);
 
-  free(cs);
+  free(cliente);
   return NULL;
+}
+
+// === UTILITY === //
+void SetSignalHandler() {
+  struct sigaction sigAct;
+  memset(&sigAct, 0, sizeof(sigAct));
+  sigAct.sa_handler = SignalHandeler;
+
+  if (sigaction(SIGHUP, &sigAct, NULL) == -1) {
+    fprintf(stderr, "Handler error");
+  }
+  if (sigaction(SIGQUIT, &sigAct, NULL) == -1) {
+    fprintf(stderr, "Handler error");
+  }
+}
+
+static void SignalHandeler(int SignalNumber) {
+  switch (SignalNumber) {
+  case SIGHUP:
+    sig_HUP = 1;
+    fprintf(stdout, "[SignalHandeler] SIGHUP ricevuto\n\t\t\tIl supermercato "
+                    "sta per chiudere.\n");
+    fflush(stdout);
+    break;
+  case SIGQUIT:
+    sig_QUIT = 1;
+    fprintf(stdout, "[SignalHandeler] SIGQUIT ricevuto\n\t\t\tIl "
+                    "supermermercato è stato chiuso malamente.\n");
+    fflush(stdout);
+    break;
+  default:
+    fprintf(stderr,
+            "[SignalHandeler] Errore nella SignalHandeler, segnale %d non "
+            "riconosciuto.\n",
+            SignalNumber);
+    break;
+  }
+}
+
+long msecond_timespec_diff(struct timespec *start, struct timespec *end) {
+  return (end->tv_sec - start->tv_sec) * 1000000 +
+         (end->tv_nsec - start->tv_nsec) / 1000;
 }

@@ -5,14 +5,14 @@ typedef struct cliente_
 {
     int IDcliente;
     int ProdComprati;
-    int tempoInside;
-    int tempoCoda;
+    long tempoInside;
+    long tempoCoda;
     int nCodeScelte;
     int uscitaCoda;
     int possoUscire;
 } Cliente;
 
-void setupcs(Cliente *cs, int i)
+void initCliente(Cliente *cs, int i)
 {
     cs->IDcliente = (i + 1);
     cs->ProdComprati = 0;
@@ -23,16 +23,10 @@ void setupcs(Cliente *cs, int i)
     cs->possoUscire = 0;
 }
 
-void printcs(Cliente cs)
-{
-    printf("%d %d %d %d %d %d \n", cs.IDcliente, cs.ProdComprati, cs.tempoInside, cs.tempoCoda,
-           cs.nCodeScelte, cs.uscitaCoda);
-}
-
 typedef struct queue
 {
     struct queuenode *head;
-    int queueopen;
+    int aperta;
     int length;
 } queue;
 
@@ -48,7 +42,7 @@ queue *createqueues(int id)
 {
     struct queue *q = malloc(sizeof(queue));
     q->head = NULL;
-    q->queueopen = 0;
+    q->aperta = 0;
     q->length = 0;
     return q;
 }
@@ -69,7 +63,6 @@ int joinqueue(queue **qs, Cliente **cs, int nqueue)
         (*qs)->length++;
         return 1;
     }
-    //printcs(**cs);
     while (curr->next != NULL)
         curr = curr->next;
     curr->next = q;

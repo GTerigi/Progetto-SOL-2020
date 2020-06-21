@@ -2,6 +2,7 @@
 
 while [ -e /proc/$1 ]
 do
+    echo "Aspetto che Esca il Supermercato";
     sleep 1s
 done
 
