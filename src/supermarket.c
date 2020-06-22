@@ -47,6 +47,8 @@ static queue *codaDirettore;
 
 // === DIRETTORE === //
 
+void *mainDirettore(void *arg);
+
 // === CASSE === //
 
 void *updateDirT(void *arg);
@@ -69,7 +71,7 @@ config *test(const char *configfile);
 void CreateQueueManagement();
 void QueueFree();
 
-void *DirectorSMcontrol(void *arg) {
+void *DirettoreApriChiudi(void *arg) {
 
   pthread_t *smchecks;
   int smopen = globalParamSupermercato->startCasse; // smcheckouts opened
@@ -243,7 +245,7 @@ void *DirectorSMcontrol(void *arg) {
   return NULL;
 }
 
-void *DirectorCustomersControl(void *arg) {
+void *DirettoreButtaDentro(void *arg) {
 
   pthread_t *cs;
   int customerscreated; // Number of all customers created from the start of the
@@ -331,38 +333,6 @@ void *DirectorCustomersControl(void *arg) {
   return NULL;
 }
 
-void *directorT(void *arg) {
-
-  // Creating subthread of director that manages the supermarket checkouts
-  pthread_t DirectorSM;
-
-  if (pthread_create(&DirectorSM, NULL, DirectorSMcontrol, (void *)arg)) {
-    fprintf(stderr, "DirectorSMcontrol: thread creation, failed!");
-    exit(EXIT_FAILURE);
-  }
-
-  // Creating subthread of director that manages the customers entry and exit
-  pthread_t DirectorCustomers;
-  if (pthread_create(&DirectorCustomers, NULL, DirectorCustomersControl,
-                     NULL)) {
-    fprintf(stderr, "DirectorCustomersControl: thread creation, failed!");
-    exit(EXIT_FAILURE);
-  }
-
-  // JOINS
-  if (pthread_join(DirectorSM, NULL) == -1) {
-    fprintf(stderr, "DirectorSMControl: thread join, failed!");
-  }
-
-  if (pthread_join(DirectorCustomers, NULL) == -1) {
-    fprintf(stderr, "DirectorSMControl: thread join, failed!");
-  }
-  // JOIN'S END
-  // Free heap memory used!
-  return NULL;
-  // return (void*) csdata;
-}
-
 int main(int argc, char const *argv[]) {
   infoCassa *Casse;
 
@@ -410,7 +380,7 @@ int main(int argc, char const *argv[]) {
   // Creating director thread
   pthread_t director;
 
-  if (pthread_create(&director, NULL, directorT, (void *)Casse) != 0) {
+  if (pthread_create(&director, NULL, mainDirettore, (void *)Casse) != 0) {
     fprintf(stderr, "Director thread creation, failed!");
     exit(EXIT_FAILURE);
   }
@@ -719,6 +689,35 @@ void printconf(config configvalues) {
 
 // === DIRETTORE === //
 
+void *mainDirettore(void *arg) {
+
+  // Thread che gestisce le casse.
+  pthread_t DirGestioneCasse;
+
+  if (pthread_create(&DirGestioneCasse, NULL, DirettoreApriChiudi,
+                     (void *)arg)) {
+    fprintf(stderr, "DirettoreApriChiudi: thread creation, failed!");
+    exit(EXIT_FAILURE);
+  }
+
+  // Thread che genera i clienti.
+  pthread_t DirButtaDentro;
+  if (pthread_create(&DirButtaDentro, NULL, DirettoreButtaDentro, NULL)) {
+    fprintf(stderr, "DirettoreButtaDentro: thread creation, failed!");
+    exit(EXIT_FAILURE);
+  }
+
+  // JOINS
+  if (pthread_join(DirGestioneCasse, NULL) == -1) {
+    fprintf(stderr, "DirectorSMControl: thread join, failed!");
+  }
+
+  if (pthread_join(DirButtaDentro, NULL) == -1) {
+    fprintf(stderr, "DirectorSMControl: thread join, failed!");
+  }
+  return NULL;
+}
+
 // === CASSE === //
 
 void *updateDirT(void *arg) {
@@ -823,13 +822,11 @@ void *mainCassa(void *arg) {
   pthread_t threadUpdateDir;
   if (pthread_create(&threadUpdateDir, NULL, updateDirT,
                      (void *)(intptr_t)(indexCoda)) != 0) {
-    fprintf(stderr, "threadUpdateDir %d: Creazione del Thread Fallita",
-            indexCoda);
+    fprintf(stderr, "[mainCassa %d] Creazione del Thread Fallita", indexCoda);
     exit(EXIT_FAILURE);
   }
   // Core-code della cassa.
   while (1) {
-
     // Controllo lo stato della coda della Cassa
     pthread_mutex_lock(&McodaClienti[indexCoda]);
     while (codaCassa[indexCoda]->length == 0 && chiudiCassa == 0) {
@@ -902,7 +899,8 @@ void *mainCassa(void *arg) {
 
       // Aspetto la fine del thread di update
       if (pthread_join(threadUpdateDir, NULL) == -1) {
-        fprintf(stderr, "DirectorSMControl: thread join, failed!");
+        fprintf(stderr, "[mainCassa %d] Join della UpdateDir fallita\n",
+                indexCoda);
       }
 
       pthread_mutex_lock(&MChiudiCassa[indexCoda]);
@@ -911,14 +909,15 @@ void *mainCassa(void *arg) {
 
       pthread_mutex_lock(&McodaClienti[indexCoda]);
 
+      // Segnalo a tutti i clienti (Usciranno dal while)
       pthread_cond_broadcast(&CcodaClienti[indexCoda]);
+      // Pulisco la Coda
       resetQueue(&codaCassa[indexCoda], indexCoda);
-
       pthread_mutex_unlock(&McodaClienti[indexCoda]);
 
+      // Aggiorno il tempo di chiusura.
       clock_gettime(CLOCK_REALTIME, &timeChiusura);
-
-      thisCassa->tempoOpen +=
+      thisCassa->tempoOpen =
           msecond_timespec_diff(&timeCreazione, &timeChiusura);
       thisCassa->Nchiusure++;
       return NULL;
