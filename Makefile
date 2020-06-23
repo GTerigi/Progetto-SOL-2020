@@ -1,5 +1,5 @@
 CC		:= gcc
-C_FLAGS := -Wall -lpthread #-g  -Wextra -pedantic -std=gnu99
+C_FLAGS := -Wall -lpthread -g  -Wextra -pedantic -std=gnu99
 
 BIN		:= bin
 SRC		:= src

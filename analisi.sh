@@ -6,6 +6,8 @@ do
     sleep 1s
 done
 
+clear;
+
 if [ -f "statsfile.log" ]; then
     while read line; do echo $line; done < statsfile.log
 else

@@ -49,6 +49,8 @@ static queue *codaDirettore;
 
 void *mainDirettore(void *arg);
 
+void *DirettoreApriChiudi(void *arg);
+
 // === CASSE === //
 
 void *updateDirT(void *arg);
@@ -70,180 +72,6 @@ config *test(const char *configfile);
 
 void CreateQueueManagement();
 void QueueFree();
-
-void *DirettoreApriChiudi(void *arg) {
-
-  pthread_t *smchecks;
-  int smopen = globalParamSupermercato->startCasse; // smcheckouts opened
-
-  smchecks = malloc(globalParamSupermercato->K_cassieri *
-                    sizeof(pthread_t)); // Creating smopen threads
-  if (!smchecks) {
-    fprintf(stderr, "malloc fallita\n");
-    exit(EXIT_FAILURE);
-  }
-
-  // Starting smopen smcheckouts!
-  for (int i = 0; i < globalParamSupermercato->startCasse; i++) {
-    pthread_mutex_lock(&McodaClienti[i]);
-    codaCassa[i]->aperta = 1;
-    pthread_mutex_unlock(&McodaClienti[i]);
-    if (pthread_create(&smchecks[i], NULL, mainCassa, &((infoCassa *)arg)[i]) !=
-        0) {
-      fprintf(stderr, "infoCassa %d: thread creation, failed!", i);
-      exit(EXIT_FAILURE);
-    }
-  }
-
-  int check;   // If queueopen and number of cashier that have updated are equal
-               // -> Check if close or open a mainCassa
-  int check1;  // Counting the number of queue that has at most 1 customer
-  int check2;  // Checking if there is a queue with more then
-               // globalParamSupermercato->S2 customers
-  int index;   // Index of sm checkout to open
-  int counter; // Counts the number of sm checkouts opened
-  int counter1;        // Number of cashier that have updated queue's length
-  int queueopen;       // Number of queues open
-  int j;               // index to cicle
-  int closeoropen = 0; // One cicle director controls queue to close, in the
-                       // other director controls queue to open
-
-  while (sig_QUIT != 1 && sig_HUP != 1) {
-    check1 = 0;
-    check2 = 0;
-    pthread_mutex_lock(&MupdateCasse);
-    while (check1 < globalParamSupermercato->S1 && check2 == 0 &&
-           sig_QUIT != 1 && sig_HUP != 1) {
-
-      if (sig_QUIT != 1 && sig_HUP != 1) {
-        pthread_cond_wait(&CupdateCasse, &MupdateCasse);
-      }
-      if (sig_QUIT != 1 && sig_HUP != 1) {
-        check = 0;
-        queueopen = 0;
-        counter1 = 0; // Number of cashier that have updated queue's length
-        for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
-          pthread_mutex_lock(&McodaClienti[i]);
-          pthread_mutex_lock(&MChiudiCassa[i]);
-          if (codaCassa[i]->aperta == 1 && aChiudiCassa[i] != 1)
-            queueopen++; // Checking how much queues are open
-          pthread_mutex_unlock(&MChiudiCassa[i]);
-          pthread_mutex_unlock(&McodaClienti[i]);
-          pthread_mutex_lock(&McassaUpdateInfo[i]);
-          if (aUpdateCassa[i] == 1)
-            counter1++; // Incrementing Number of cashier that have updated
-                        // queue's length
-          pthread_mutex_unlock(&McassaUpdateInfo[i]);
-        }
-        if (queueopen == counter1)
-          check++; // If queueopen and number of cashier that have updated are
-                   // equal -> Check if close or open a mainCassa
-
-        if (check != 0) { // Director checks the queues lengths to decide if
-                          // close or open some sm checkouts
-          for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
-            pthread_mutex_lock(&MlengthCode[i]);
-            pthread_mutex_lock(&McodaClienti[i]);
-            if (lenghtCode[i] <= 1 && codaCassa[i]->aperta == 1)
-              check1++; // Counting the number of queue that has at most 1
-                        // customer
-            pthread_mutex_unlock(&McodaClienti[i]);
-            if (lenghtCode[i] >= globalParamSupermercato->S2)
-              check2++; // Checking if there is a queue with more then
-                        // globalParamSupermercato->S2 customers
-            pthread_mutex_unlock(&MlengthCode[i]);
-          }
-        }
-      }
-    }
-    pthread_mutex_unlock(&MupdateCasse);
-
-    for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
-      pthread_mutex_lock(&McassaUpdateInfo[i]);
-      aUpdateCassa[i] = 0; // Reset the update variable after have checked
-                           // them
-      pthread_mutex_unlock(&McassaUpdateInfo[i]);
-    }
-
-    if (sig_QUIT != 1 && sig_HUP != 1) {
-
-      counter = 0; // Number of queues just closed
-      j = 0;       // index to cicle
-      if (check1 > 0 && smopen > 1 && closeoropen == 0) {
-        while (counter < (check1 - globalParamSupermercato->S1 + 1) &&
-               j < globalParamSupermercato
-                       ->K_cassieri) { // While you doesnt have closed the right
-                                       // number
-                                       // of sm checkouts
-          pthread_mutex_lock(&MlengthCode[j]);
-          pthread_mutex_lock(&McodaClienti[j]);
-          if (lenghtCode[j] <= 1 && codaCassa[j]->aperta == 1) {
-            // Check if the jth queue matches the conditions to close
-            pthread_mutex_lock(&MChiudiCassa[j]);
-            aChiudiCassa[j] = 1; // Set the jth queue has to close
-            pthread_mutex_unlock(&MChiudiCassa[j]);
-            pthread_cond_signal(&CcodaClienti[j]);
-            counter++; // Number of queue just closed
-            smopen--;  // Supermarket checkouts that are still open
-          }
-          pthread_mutex_unlock(&McodaClienti[j]);
-          pthread_mutex_unlock(&MlengthCode[j]);
-          j++;
-        }
-      }
-      // TODO: VARIABILE PER VERIFICARE SE SI E' CHIUSO DEF IL THREAD O NO
-      if (check2 > 0 && closeoropen == 1) {
-        index = -1;
-        for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
-          pthread_mutex_lock(&McodaClienti[i]);
-          pthread_mutex_lock(&MChiudiCassa[i]);
-          if (codaCassa[i]->aperta == 0 && index == -1 &&
-              aChiudiCassa[i] != 1) {
-            index = i;
-          } // if the ith queue matches the codntions to open take the index
-          pthread_mutex_unlock(&MChiudiCassa[i]);
-          pthread_mutex_unlock(&McodaClienti[i]);
-        }
-        if (index != -1) {
-          pthread_mutex_lock(&McodaClienti[index]);
-          codaCassa[index]->aperta = 1; // Set queue open
-          pthread_mutex_unlock(&McodaClienti[index]);
-          if (pthread_create(&smchecks[index], NULL, mainCassa,
-                             &((infoCassa *)arg)[index]) !=
-              0) { // Start cashier thread
-            fprintf(stderr, "infoCassa %d: thread creation, failed!", index);
-            exit(EXIT_FAILURE);
-          }
-          smopen++;
-        }
-      }
-      if (closeoropen == 0)
-        closeoropen = 1;
-      else
-        closeoropen = 0;
-    }
-  }
-
-  if (sig_QUIT == 1) {
-    for (int i = 0; i < globalParamSupermercato->K_cassieri;
-         i++) { // To wake up cashiers in case of a SIGQUIT and they are in wait
-      pthread_mutex_lock(&McodaClienti[i]);
-      pthread_cond_signal(&CcodaClientiNotEmpty[i]);
-      pthread_mutex_unlock(&McodaClienti[i]);
-    }
-  }
-
-  for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
-    if (((infoCassa *)arg)[i].HBO == 1) {
-      if (pthread_join(smchecks[i], NULL) == -1) {
-        fprintf(stderr, "SMcheckout: thread join, failed!");
-      }
-    }
-  }
-
-  free(smchecks);
-  return NULL;
-}
 
 void *DirettoreButtaDentro(void *arg) {
 
@@ -334,6 +162,8 @@ void *DirettoreButtaDentro(void *arg) {
 }
 
 int main(int argc, char const *argv[]) {
+  struct timespec inizio, fine;
+  clock_gettime(CLOCK_REALTIME, &inizio);
   infoCassa *Casse;
 
   SetSignalHandler();
@@ -410,6 +240,10 @@ int main(int argc, char const *argv[]) {
   free(Casse);
   QueueFree();
   free(globalParamSupermercato);
+  clock_gettime(CLOCK_REALTIME, &fine);
+
+  printf("\tTEMPO DEL PROCESSO: \t%0.3f s",
+         msecond_timespec_diff(&inizio, &fine) / pow(10, 6));
   return 0;
 }
 
@@ -718,6 +552,192 @@ void *mainDirettore(void *arg) {
   return NULL;
 }
 
+void *DirettoreApriChiudi(void *arg) {
+
+  // Array di Thread rappresentanti le casse
+  pthread_t *tCasse;
+
+  tCasse = malloc(globalParamSupermercato->K_cassieri * sizeof(pthread_t));
+  if (!tCasse) {
+    fprintf(stderr,
+            "[DirettoreApriChiudi] malloc array Thread Casse fallita\n");
+    exit(EXIT_FAILURE);
+  }
+
+  // Apro esattamente startCasse e gli passo come argomento la sua struttura
+  // dati
+  for (int i = 0; i < globalParamSupermercato->startCasse; i++) {
+    pthread_mutex_lock(&McodaClienti[i]);
+    codaCassa[i]->aperta = 1;
+    pthread_mutex_unlock(&McodaClienti[i]);
+    if (pthread_create(&tCasse[i], NULL, mainCassa, &((infoCassa *)arg)[i]) !=
+        0) {
+      fprintf(stderr, "infoCassa %d: thread creation, failed!", i);
+      exit(EXIT_FAILURE);
+    }
+  }
+  // Numero di casse aperte al momento.
+  int NumCasseAperte = globalParamSupermercato->startCasse;
+
+  int cS1; // numero di casse con almeno un cliente
+  int cS2; // Numero di casse con più di S2 clienti
+  // int indexCassa;  // Indice della cassa da aprire o chiudere
+  // int casseAperte; // Numero di casse aperte in questo momento
+  int codeUpdate; // Numero di casse che hanno eseguito un update al Direttore
+  int codeAperte; // Numero di code aperte
+  int aprichiudi = 0; // {1} -> Apri {0} -> Chiudi
+
+  while (sig_QUIT != 1 && sig_HUP != 1) {
+    // Resetto i valori
+    cS1 = 0;
+    cS2 = 0;
+
+    // Finchè uno dei due valori soglia non supera S1 o S2 ciclo
+    pthread_mutex_lock(&MupdateCasse);
+    while (cS1 < globalParamSupermercato->S1 && cS2 == 0 && sig_QUIT != 1 &&
+           sig_HUP != 1) {
+
+      // Aspetto un eventuale signal da parte delle casse,
+      // nel caso sia la prima volta che entro nel ciclo
+      if (sig_QUIT != 1 && sig_HUP != 1) {
+        pthread_cond_wait(&CupdateCasse, &MupdateCasse);
+      }
+      // Se non ho ricevuto un segnale nel frattempo resetto i valori di scelta
+      if (sig_QUIT != 1 && sig_HUP != 1) {
+        codeAperte = 0;
+        codeUpdate = 0;
+
+        // Ciclo per tutte le code e raccolgo le informazioni
+        for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
+          pthread_mutex_lock(&McodaClienti[i]);
+          pthread_mutex_lock(&MChiudiCassa[i]);
+          // Se la coda è aperta e non la devo chiudere incremento
+          if (codaCassa[i]->aperta == 1 && aChiudiCassa[i] != 1)
+            codeAperte++;
+          pthread_mutex_unlock(&MChiudiCassa[i]);
+          pthread_mutex_unlock(&McodaClienti[i]);
+
+          // Controllo se questa cassa ha eseguito un update.
+          pthread_mutex_lock(&McassaUpdateInfo[i]);
+          if (aUpdateCassa[i] == 1)
+            codeUpdate++;
+          pthread_mutex_unlock(&McassaUpdateInfo[i]);
+        }
+
+        // Se le code aperte hanno effettuato tutte un update allora aggiorno e
+        // posso aprire o chiudere
+        if (codeAperte == codeUpdate) {
+          for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
+            pthread_mutex_lock(&MlengthCode[i]);
+            pthread_mutex_lock(&McodaClienti[i]);
+            if (lenghtCode[i] > 0 && codaCassa[i]->aperta == 1)
+              cS1++;
+            pthread_mutex_unlock(&McodaClienti[i]);
+            if (lenghtCode[i] >= globalParamSupermercato->S2)
+              cS2++;
+            pthread_mutex_unlock(&MlengthCode[i]);
+          }
+        }
+      }
+    }
+    pthread_mutex_unlock(&MupdateCasse);
+
+    // Resetto le variabili per l'aggiornamento
+    for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
+      pthread_mutex_lock(&McassaUpdateInfo[i]);
+      aUpdateCassa[i] = 0;
+      pthread_mutex_unlock(&McassaUpdateInfo[i]);
+    }
+
+    // Se non ho ricevuto segnali di chiusura allora elaboro e scelgo la cassa
+    // da chiudere/aprire
+    if (sig_QUIT != 1 && sig_HUP != 1) {
+      int casseChiuse = 0;
+      int index = 0;
+      int j = 0; // indice per ciclare
+
+      // Caso in cui devo chiudere una cassa.
+      if (cS1 > 0 && NumCasseAperte > 1 && aprichiudi == 0) {
+        while (casseChiuse < (cS1 - globalParamSupermercato->S1 + 1) &&
+               j < globalParamSupermercato->K_cassieri) {
+          pthread_mutex_lock(&MlengthCode[j]);
+          pthread_mutex_lock(&McodaClienti[j]);
+
+          // Se la cassa che controllo è aperta e con meno di una persona (al
+          // tempo dell'update) allora la chiudo
+          if (lenghtCode[j] <= 1 && codaCassa[j]->aperta == 1) {
+            pthread_mutex_lock(&MChiudiCassa[j]);
+            aChiudiCassa[j] = 1;
+            pthread_mutex_unlock(&MChiudiCassa[j]);
+            pthread_cond_signal(&CcodaClienti[j]);
+            casseChiuse++;
+            NumCasseAperte--;
+          }
+          pthread_mutex_unlock(&McodaClienti[j]);
+          pthread_mutex_unlock(&MlengthCode[j]);
+          j++;
+        }
+      }
+
+      // Caso in cui devo aprire una cassa.
+      if (cS2 > 0 && aprichiudi == 1) {
+        index = -1; // Indice della cassa da aprire
+        for (int i = 0; i < globalParamSupermercato->K_cassieri && index == -1;
+             i++) {
+          pthread_mutex_lock(&McodaClienti[i]);
+          pthread_mutex_lock(&MChiudiCassa[i]);
+          // Se la cassa è chiusa e non ho disposizioni pregresse di volerla
+          // chiudere allora la apro .
+          if (codaCassa[i]->aperta == 0 && index == -1 &&
+              aChiudiCassa[i] != 1) {
+            index = i;
+          } // if the ith queue matches the codntions to open take the index
+          pthread_mutex_unlock(&MChiudiCassa[i]);
+          pthread_mutex_unlock(&McodaClienti[i]);
+        }
+
+        // Se ho trovaro una cassa da aprire creo di nuovo il thread.
+        if (index != -1) {
+          pthread_mutex_lock(&McodaClienti[index]);
+          codaCassa[index]->aperta = 1;
+          pthread_mutex_unlock(&McodaClienti[index]);
+          if (pthread_create(&tCasse[index], NULL, mainCassa,
+                             &((infoCassa *)arg)[index]) !=
+              0) { // Start cashier thread
+            fprintf(stderr, "infoCassa %d: thread creation, failed!", index);
+            exit(EXIT_FAILURE);
+          }
+          NumCasseAperte++;
+        }
+      }
+
+      // Aggiorno la scelta.
+      aprichiudi = !aprichiudi;
+    }
+  }
+
+  // Se ho ricevuto un segnale di Hard-Quit allora sveglio i thread cassieri che
+  // aspettano dei clienti
+  if (sig_QUIT == 1) {
+    for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
+      pthread_mutex_lock(&McodaClienti[i]);
+      pthread_cond_signal(&CcodaClientiNotEmpty[i]);
+      pthread_mutex_unlock(&McodaClienti[i]);
+    }
+  }
+
+  for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
+    if (((infoCassa *)arg)[i].HBO == 1) {
+      if (pthread_join(tCasse[i], NULL) == -1) {
+        fprintf(stderr, "[Direttore ApriChiudi]: A");
+      }
+    }
+  }
+
+  free(tCasse);
+  return NULL;
+}
+
 // === CASSE === //
 
 void *updateDirT(void *arg) {
@@ -917,7 +937,7 @@ void *mainCassa(void *arg) {
 
       // Aggiorno il tempo di chiusura.
       clock_gettime(CLOCK_REALTIME, &timeChiusura);
-      thisCassa->tempoOpen =
+      thisCassa->tempoOpen +=
           msecond_timespec_diff(&timeCreazione, &timeChiusura);
       thisCassa->Nchiusure++;
       return NULL;
