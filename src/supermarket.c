@@ -48,8 +48,8 @@ static queue *codaDirettore;
 // === DIRETTORE === //
 
 void *mainDirettore(void *arg);
-
 void *DirettoreApriChiudi(void *arg);
+void *DirettoreButtaDentro(void *arg);
 
 // === CASSE === //
 
@@ -72,94 +72,6 @@ config *test(const char *configfile);
 
 void CreateQueueManagement();
 void QueueFree();
-
-void *DirettoreButtaDentro(void *arg) {
-
-  pthread_t *cs;
-  int customerscreated; // Number of all customers created from the start of the
-                        // supermarket
-  int activecustomers;  // Number of active customers in the supermarket
-  int i, j;
-  int mallocsize;
-
-  customerscreated = activecustomers = mallocsize =
-      globalParamSupermercato->C_clienti;
-
-  // Creating C customers
-  cs = malloc(mallocsize * sizeof(pthread_t)); // index 0-49
-  if (!cs) {
-    fprintf(stderr, "malloc fallita\n");
-    exit(EXIT_FAILURE);
-  }
-
-  for (i = 0; i < globalParamSupermercato->C_clienti; i++) {
-    if (pthread_create(&cs[i], NULL, mainCliente, (void *)(intptr_t)i) != 0) {
-      fprintf(stderr, "mainCliente %d: thread creation, failed!", i);
-      exit(EXIT_FAILURE);
-    }
-  }
-
-  // Da implementare: caso di SIGHUP
-  while (activecustomers != 0) {
-    pthread_mutex_lock(&McodaDirettore);
-    while (activecustomers != 0) {
-      if (codaDirettore->length == 0)
-        pthread_cond_wait(&CcodaDirettoreNotEmpty,
-                          &McodaDirettore); // Get waken when a customer wants
-                                            // to get out of the supermarket
-      // Say to the customer that can exit
-      Cliente *cliente = removecustomer(&codaDirettore, -1);
-      cliente->possoUscire = 1;
-      activecustomers--;
-      pthread_cond_signal(&CcodaDirettoreClienteEsce);
-      if (activecustomers == 0) {
-        for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
-          pthread_mutex_lock(&McodaClienti[i]);
-          sigUPCassaExit = 1;
-          pthread_cond_signal(&CcodaClientiNotEmpty[i]);
-          pthread_mutex_unlock(&McodaClienti[i]);
-        }
-      }
-      if (activecustomers == (globalParamSupermercato->C_clienti -
-                              globalParamSupermercato->E_min) &&
-          sig_HUP != 1 && sig_QUIT != 1)
-        break;
-    }
-    pthread_mutex_unlock(&McodaDirettore);
-
-    // If number of customers is equal to C-E ==> wake up E customers and let
-    // them enter the supermarket
-    if (activecustomers == (globalParamSupermercato->C_clienti -
-                            globalParamSupermercato->E_min) &&
-        sig_HUP != 1 && sig_QUIT != 1) {
-      mallocsize += globalParamSupermercato->E_min;
-      if ((cs = realloc(cs, mallocsize * sizeof(pthread_t))) == NULL) {
-        fprintf(stderr, "1° realloc failed");
-        exit(EXIT_FAILURE);
-      }
-      j = customerscreated;
-
-      for (i = 0; i < globalParamSupermercato->E_min; i++) {
-        if (pthread_create(&cs[j + i], NULL, mainCliente,
-                           (void *)(intptr_t)i + j) != 0) {
-          fprintf(stderr, "mainCliente %d: thread creation, failed!", j + i);
-          exit(EXIT_FAILURE);
-        }
-        customerscreated++;
-        activecustomers++;
-      }
-    }
-  }
-
-  for (i = 0; i < mallocsize; i++) {
-    if (pthread_join(cs[i], NULL) == -1) {
-      fprintf(stderr, "DirectorSMControl: thread join, failed!");
-    }
-  }
-
-  free(cs);
-  return NULL;
-}
 
 int main(int argc, char const *argv[]) {
   struct timespec inizio, fine;
@@ -735,6 +647,98 @@ void *DirettoreApriChiudi(void *arg) {
   }
 
   free(tCasse);
+  return NULL;
+}
+
+void *DirettoreButtaDentro(void *arg) {
+  // Array di Thread relativi ai clienti.
+  pthread_t *tClienti;
+  int clientiGenerati = globalParamSupermercato->C_clienti;
+  int clientiAttivi = globalParamSupermercato->C_clienti;
+  int i, j, sizeArrayT = globalParamSupermercato->C_clienti;
+
+  // Creo per la prima volta i C clienti.
+  tClienti = malloc(sizeArrayT * sizeof(pthread_t));
+  if (!tClienti) {
+    fprintf(stderr, "[DirettoreButtaDentro] Malloc Clienti Fallita\n");
+    exit(EXIT_FAILURE);
+  }
+
+  for (i = 0; i < globalParamSupermercato->C_clienti; i++) {
+    if (pthread_create(&tClienti[i], NULL, mainCliente, (void *)(intptr_t)i) !=
+        0) {
+      fprintf(stderr,
+              "[DirettoreButtaDentro] Creazione Thread Cliente fallita");
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  // Controllo se ho dei clienti che vogliono uscire dal supermercato
+  while (clientiAttivi != 0) {
+    pthread_mutex_lock(&McodaDirettore);
+    while (clientiAttivi != 0) {
+      // Se la coda è vuota aspetto
+      while (codaDirettore->length == 0)
+        pthread_cond_wait(&CcodaDirettoreNotEmpty, &McodaDirettore);
+
+      // Recupero il cliente
+      Cliente *cliente = removecustomer(&codaDirettore, -1);
+      cliente->possoUscire = 1;
+      clientiAttivi--;
+      pthread_cond_signal(&CcodaDirettoreClienteEsce);
+
+      if (clientiAttivi == 0) {
+        for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
+          pthread_mutex_lock(&McodaClienti[i]);
+          sigUPCassaExit = 1;
+          pthread_cond_signal(&CcodaClientiNotEmpty[i]);
+          pthread_mutex_unlock(&McodaClienti[i]);
+        }
+      }
+      if (clientiAttivi == (globalParamSupermercato->C_clienti -
+                            globalParamSupermercato->E_min) &&
+          sig_HUP != 1 && sig_QUIT != 1)
+        break;
+    }
+    pthread_mutex_unlock(&McodaDirettore);
+
+    // Controllo se il numero di clienti attivi è inferiore alla soglia
+    // descritta nel file di configurazione
+    if (clientiAttivi == (globalParamSupermercato->C_clienti -
+                          globalParamSupermercato->E_min) &&
+        sig_HUP != 1 && sig_QUIT != 1) {
+      // Alloco spazio nell'array di thread.
+      sizeArrayT += globalParamSupermercato->E_min;
+      if ((tClienti = realloc(tClienti, sizeArrayT * sizeof(pthread_t))) ==
+          NULL) {
+        fprintf(stderr, "[DirettoreButtaDentro] Realloc fallita");
+        exit(EXIT_FAILURE);
+      }
+      // Nuovo indice per l'array
+      j = clientiGenerati;
+
+      // creo i nuovi thread.
+      for (i = 0; i < globalParamSupermercato->E_min; i++) {
+        if (pthread_create(&tClienti[j + i], NULL, mainCliente,
+                           (void *)(intptr_t)i + j) != 0) {
+          fprintf(stderr, "[DirettoreButtaDentro] Creazione Thread Cliente "
+                          "(realloc) fallita");
+          exit(EXIT_FAILURE);
+        }
+        clientiGenerati++;
+        clientiAttivi++;
+      }
+    }
+  }
+
+  // Aspetto che tutti i thread siano usciti.
+  for (i = 0; i < sizeArrayT; i++) {
+    if (pthread_join(tClienti[i], NULL) == -1) {
+      fprintf(stderr, "[DirettoreButtaDentro] Join Cliente fallita");
+    }
+  }
+
+  free(tClienti);
   return NULL;
 }
 
