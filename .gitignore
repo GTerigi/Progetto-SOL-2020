@@ -1,3 +1,5 @@
 
 pid.PID
 statsfile.log
+bin/*
+.vscode/*
