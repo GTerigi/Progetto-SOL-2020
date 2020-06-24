@@ -1,8 +1,9 @@
 #define _POSIX_C_SOURCE 199309L
 
-#include <Queue/queue.h>
+#include <CodaClienti/CodaClienti.h>
 #include <errno.h>
 #include <header.h>
+#include <iniParser/ini.h>
 #include <inttypes.h>
 #include <math.h>
 #include <pthread.h>
@@ -31,7 +32,7 @@ typedef struct config {
   int E_min;
   int T_buyTimeCliente;
   int P_maxProdCliente;
-  int S_timeElabCassa;
+  int T_timeElabCassa;
   int S1;
   int S2;
   int startCasse;
@@ -39,8 +40,8 @@ typedef struct config {
 } config;
 
 static config *globalParamSupermercato;
-static queue **codaCassa;
-static queue *codaDirettore;
+static CodaClienti **codaCassa;
+static CodaClienti *codaDirettore;
 
 // === DIRETTORE === //
 
@@ -53,6 +54,7 @@ void *DirettoreButtaDentro(void *arg);
 void *updateDirT(void *arg);
 void *mainCassa(void *arg);
 void initInfoCassa(infoCassa *cassa, int ID);
+
 // === CLIENTE === //
 
 void *mainCliente(void *arg);
@@ -62,11 +64,9 @@ void *mainCliente(void *arg);
 void SetSignalHandler();
 static void SignalHandeler(int SignalNumber);
 long msecond_timespec_diff(struct timespec *start, struct timespec *end);
-
-int confcheck(config *globalParamSupermercato);
-config *test(const char *configfile);
-// void printconf(config configvalues);
-
+int handlerConfiguration(void *configuration, const char *section,
+                         const char *name, const char *value);
+int getConfiguration(const char *path);
 void CreateQueueManagement();
 void QueueFree();
 
@@ -75,73 +75,78 @@ int main(int argc, char const *argv[]) {
   clock_gettime(CLOCK_REALTIME, &inizio);
   infoCassa *Casse;
 
+  // Maschera dei Segnali.
   SetSignalHandler();
+
+  // seed globale per le scelte random
   globalTime = time(NULL);
-  long totalcustomers = 0, totalproducts = 0;
+  long totClienti = 0, totProdotti = 0;
 
   if (argc != 2 && argc != 1) {
-    fprintf(stderr, "Errore: Usare %s {Path/To/config.txt}\n", argv[0]);
+    fprintf(stderr, "Errore: Usare %s {Path/To/config.ini}\n", argv[0]);
     exit(EXIT_FAILURE);
   }
 
   if (argc == 2) {
-    // Parameter's configure
-    if ((globalParamSupermercato = test(argv[1])) == NULL) {
-      exit(EXIT_FAILURE);
+    if (getConfiguration(argv[1]) == 0) {
+      return EXIT_FAILURE;
     }
   } else {
-    if ((globalParamSupermercato = test("config.txt")) == NULL) {
-      exit(EXIT_FAILURE);
+    if (getConfiguration("config.ini") == 0) {
+      return EXIT_FAILURE;
     }
   }
 
-  CreateQueueManagement(); // Create queues and mutex/condition vars to control
-                           // them with threads.
+  // Creo tutte le mutex e le code che mi servono per il processo
+  CreateQueueManagement();
 
-  // Creating the "container" for cashier
-
+  // Genero la 'shell' di ogni cassa. Una struct di tipo infoCassa che passo
+  // alla cassa ogni volta che viene generata.
   Casse = malloc(globalParamSupermercato->K_cassieri * sizeof(infoCassa));
   for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
     initInfoCassa(&Casse[i], i);
   }
 
   if (!Casse) {
-    fprintf(stderr, "malloc fallita\n");
+    fprintf(stderr, "[main] malloc Casse fallita\n");
     exit(EXIT_FAILURE);
   }
-  // Aggiungo la maschera per i segnali
 
+  // Apro il file di log che uso per fare la store delle informazioni dei
+  // clienti.
   if ((fileLog = fopen("statsfile.log", "w")) == NULL) {
     fprintf(stderr, "Stats file opening failed");
     exit(EXIT_FAILURE);
   }
 
-  // Creating director thread
-  pthread_t director;
-
-  if (pthread_create(&director, NULL, mainDirettore, (void *)Casse) != 0) {
-    fprintf(stderr, "Director thread creation, failed!");
+  // Creo il Thread Direttore, il Core del progetto.
+  // A sua volta crea le casse, i clienti e gestisce l'uscita di essi
+  pthread_t tDirettore;
+  if (pthread_create(&tDirettore, NULL, mainDirettore, (void *)Casse) != 0) {
+    fprintf(stderr, "[main] tDirettore create fallita");
     exit(EXIT_FAILURE);
   }
 
-  if (pthread_join(director, NULL) == -1) {
-    fprintf(stderr, "Director thread join, failed!");
+  // Aspetto l'uscita del Thread
+  if (pthread_join(tDirettore, NULL) == -1) {
+    fprintf(stderr, "[main] tDirettore Join fallita");
   }
 
+  // Stampo le informazioni di ogni cassa
   for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
     fprintf(fileLog,
-            "CASHIER -> | ID:%d | n. bought products:%d | n. customers:%d | "
-            "time opened: %0.3f s | avg service time: %0.3f s | number of "
-            "clousure:%d |\n",
+            "Cassa %d\nProdotti Elaborati %d\nClienti Serviti "
+            "%d\nApertura Totale %0.3fs \n Tempo di servizio %0.3fs "
+            "\nNumero di Chiusure %d\n\n",
             Casse[i].IDcassa, Casse[i].prodElaborati,
             Casse[i].clientiProcessati, (double)Casse[i].tempoOpen / pow(10, 6),
             Casse[i].tempoServizio / 1000, Casse[i].Nchiusure);
-    totalcustomers += Casse[i].clientiProcessati;
-    totalproducts += Casse[i].prodElaborati;
+    totClienti += Casse[i].clientiProcessati;
+    totProdotti += Casse[i].prodElaborati;
   }
 
-  fprintf(fileLog, "TOTAL CUSTOMERS SERVED: %ld\n", totalcustomers);
-  fprintf(fileLog, "TOTAL PRODUCTS BOUGHT: %ld\n", totalproducts);
+  fprintf(fileLog, "\n\nClienti serviti dal Supermercato: %ld\n", totClienti);
+  fprintf(fileLog, "Prodotti comprati nel Supermercato: %ld\n", totProdotti);
 
   printf("PROGRAM FINISHED\n");
 
@@ -151,7 +156,7 @@ int main(int argc, char const *argv[]) {
   free(globalParamSupermercato);
   clock_gettime(CLOCK_REALTIME, &fine);
 
-  printf("\tTEMPO DEL PROCESSO: \t%0.3f s",
+  printf("\tTEMPO DEL PROCESSO:%0.3f s",
          msecond_timespec_diff(&inizio, &fine) / pow(10, 6));
   return 0;
 }
@@ -159,13 +164,14 @@ int main(int argc, char const *argv[]) {
 void CreateQueueManagement() {
 
   // Creating queues for the K supermarket checkouts
-  if ((codaCassa = (queue **)malloc((globalParamSupermercato->K_cassieri) *
-                                    sizeof(queue *))) == NULL) {
+  if ((codaCassa = (CodaClienti **)malloc(
+           (globalParamSupermercato->K_cassieri) * sizeof(CodaClienti *))) ==
+      NULL) {
     fprintf(stderr, "malloc failed\n");
     exit(EXIT_FAILURE);
   }
   for (int i = 0; i < globalParamSupermercato->K_cassieri; i++) {
-    codaCassa[i] = createqueues(i);
+    codaCassa[i] = InitCodaClienti();
   }
 
   // Creating the mutex for the queues
@@ -194,7 +200,7 @@ void CreateQueueManagement() {
     }
   }
 
-  codaDirettore = createqueues(-1);
+  codaDirettore = InitCodaClienti();
 
   if ((CcodaClientiNotEmpty = malloc(globalParamSupermercato->K_cassieri *
                                      sizeof(pthread_cond_t))) == NULL) {
@@ -298,120 +304,6 @@ void QueueFree() {
   free(aChiudiCassa);
   free(aUpdateCassa);
   free(McassaUpdateInfo);
-}
-
-int confcheck(config *globalParamSupermercato) {
-  if (!(globalParamSupermercato->P_maxProdCliente >= 0 &&
-        globalParamSupermercato->T_buyTimeCliente > 10 &&
-        globalParamSupermercato->K_cassieri > 0 &&
-        globalParamSupermercato->S_timeElabCassa > 0 &&
-        (globalParamSupermercato->E_min > 0 &&
-         globalParamSupermercato->E_min < globalParamSupermercato->C_clienti) &&
-        globalParamSupermercato->C_clienti > 1 &&
-        globalParamSupermercato->S1 > 0 && globalParamSupermercato->S2 > 0 &&
-        globalParamSupermercato->S1 < globalParamSupermercato->S2 &&
-        globalParamSupermercato->startCasse > 0 &&
-        globalParamSupermercato->startCasse <=
-            globalParamSupermercato->K_cassieri &&
-        globalParamSupermercato->timeNotifica >
-            globalParamSupermercato->T_buyTimeCliente)) {
-    fprintf(stderr, "conf not valid, constraints: P>=0, T>10, K>0, S>0, 0<E<C, "
-                    "C>1, S1>0, S1<S2, smopen>0, smopen<=K, directornews>T \n");
-    return -1;
-  } else
-    return 1;
-}
-
-config *test(const char *configfile) {
-  int control, i = 0, j;
-  config *globalParamSupermercato;
-  FILE *fd = NULL;
-  char *buffer;
-  char *cpy;
-
-  if ((fd = fopen(configfile, "r")) == NULL) {
-    fclose(fd);
-    return NULL;
-  }
-
-  if ((globalParamSupermercato = malloc(sizeof(config))) == NULL) {
-    fclose(fd);
-    free(globalParamSupermercato);
-    return NULL;
-  }
-
-  if ((buffer = malloc(MAX_LEN * sizeof(char))) == NULL) {
-    fclose(fd);
-    free(globalParamSupermercato);
-    free(buffer);
-    return NULL;
-  }
-
-  while (fgets(buffer, MAX_LEN, fd) != NULL) {
-    j = 0;
-    cpy = buffer;
-    while (*buffer != '=') {
-      buffer++;
-      j++;
-    }
-    buffer++;
-    switch (i) {
-    case 0:
-      globalParamSupermercato->K_cassieri = atoi(buffer);
-      break;
-    case 1:
-      globalParamSupermercato->C_clienti = atoi(buffer);
-      break;
-    case 2:
-      globalParamSupermercato->E_min = atoi(buffer);
-      break;
-    case 3:
-      globalParamSupermercato->T_buyTimeCliente = atoi(buffer);
-      break;
-    case 4:
-      globalParamSupermercato->P_maxProdCliente = atoi(buffer);
-      break;
-    case 5:
-      globalParamSupermercato->S_timeElabCassa = atoi(buffer);
-      break;
-    case 6:
-      globalParamSupermercato->S1 = atoi(buffer);
-      break;
-    case 7:
-      globalParamSupermercato->S2 = atoi(buffer);
-      break;
-    case 8:
-      globalParamSupermercato->startCasse = atoi(buffer);
-      break;
-    case 9:
-      globalParamSupermercato->timeNotifica = atoi(buffer);
-      break;
-
-    default:
-      break;
-    }
-    i++;
-    buffer = cpy;
-  }
-
-  if ((control = confcheck(globalParamSupermercato)) == -1) {
-    fclose(fd);
-    free(globalParamSupermercato);
-    free(buffer);
-    return NULL;
-  }
-  free(buffer);
-  fclose(fd);
-
-  return globalParamSupermercato;
-}
-
-void printconf(config configvalues) {
-  printf("%d %d %d %d %d %d %d %d %d %d\n", configvalues.K_cassieri,
-         configvalues.C_clienti, configvalues.E_min,
-         configvalues.T_buyTimeCliente, configvalues.P_maxProdCliente,
-         configvalues.S_timeElabCassa, configvalues.S1, configvalues.S2,
-         configvalues.startCasse, configvalues.timeNotifica);
 }
 
 // === DIRETTORE === //
@@ -663,7 +555,7 @@ void *DirettoreButtaDentro(void *arg) {
         pthread_cond_wait(&CcodaDirettoreNotEmpty, &McodaDirettore);
 
       // Recupero il cliente
-      Cliente *cliente = removecustomer(&codaDirettore, -1);
+      Cliente *cliente = popCoda(&codaDirettore);
       cliente->possoUscire = 1;
       clientiAttivi--;
       pthread_cond_signal(&CcodaDirettoreClienteEsce);
@@ -867,14 +759,14 @@ void *mainCassa(void *arg) {
 
     // Se non sono chiuso recupero il cliente
     if (chiudiCassa != 1) {
-      Cliente *cliente = removecustomer(&codaCassa[indexCoda], indexCoda);
+      Cliente *cliente = popCoda(&codaCassa[indexCoda]);
 
       pthread_mutex_unlock(&McodaClienti[indexCoda]);
 
       // Tempo di elaborazione per il cliente corrente.
       timeElabCassa =
           thisCassa->tempoElabProdotto +
-          (globalParamSupermercato->S_timeElabCassa * cliente->ProdComprati);
+          (globalParamSupermercato->T_timeElabCassa * cliente->ProdComprati);
       struct timespec tElab = {(timeElabCassa / 1000),
                                ((timeElabCassa % 1000) * 1000)};
       nanosleep(&tElab, NULL);
@@ -917,7 +809,7 @@ void *mainCassa(void *arg) {
       // Segnalo a tutti i clienti (Usciranno dal while)
       pthread_cond_broadcast(&CcodaClienti[indexCoda]);
       // Pulisco la Coda
-      resetQueue(&codaCassa[indexCoda], indexCoda);
+      destroyCoda(&codaCassa[indexCoda]);
       pthread_mutex_unlock(&McodaClienti[indexCoda]);
 
       // Aggiorno il tempo di chiusura.
@@ -1007,9 +899,8 @@ void *mainCliente(void *arg) {
         pthread_mutex_lock(&McodaClienti[numCodaScelta]);
         cliente->nCodeScelte++;
         // Incremento il contatore delle code scelte dal Cliente
-        if ((joinqueue(&codaCassa[numCodaScelta], &cliente, numCodaScelta)) ==
-            -1) {
-          fprintf(stderr, "[mainCliente] joinqueue Fallita\n");
+        if ((pushCoda(&codaCassa[numCodaScelta], &cliente)) == -1) {
+          fprintf(stderr, "[mainCliente] pushCoda Fallita\n");
           exit(EXIT_FAILURE);
         }
 
@@ -1045,8 +936,8 @@ void *mainCliente(void *arg) {
 
   // Entro nella coda del Direttore per l'approvazione ad uscire.
   pthread_mutex_lock(&McodaDirettore);
-  if ((joinqueue(&codaDirettore, &cliente, -1)) == -1) {
-    fprintf(stderr, "malloc failed\n");
+  if ((pushCoda(&codaDirettore, &cliente)) == -1) {
+    fprintf(stderr, "[MainCliente] pushCoda su Direttore fallita\n");
   }
 
   // Segnalo al Direttore che ha qualcuno in coda e aspetto la sua conferma.
@@ -1114,6 +1005,49 @@ static void SignalHandeler(int SignalNumber) {
             SignalNumber);
     break;
   }
+}
+
+int getConfiguration(const char *path) {
+  /** @author   https://github.com/benhoyt/inih
+   * La Api di ini_parser si trova sulla sua repository. (New BSD license)
+   */
+  if ((globalParamSupermercato = malloc(sizeof(config))) == NULL) {
+    free(globalParamSupermercato);
+    return 0;
+  }
+  if (ini_parse(path, handlerConfiguration, globalParamSupermercato) < 0) {
+    printf("Impossibile leggere il File di Configurazione '%s'\n", path);
+    return 0;
+  }
+  return 1;
+}
+
+int handlerConfiguration(void *configuration, const char *section,
+                         const char *name, const char *value) {
+  config *pconfig = (config *)configuration;
+#define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
+  if (MATCH("supermercato", "K_cassieri")) {
+    pconfig->K_cassieri = atoi(value);
+  } else if (MATCH("supermercato", "initialCassieri")) {
+    pconfig->startCasse = atoi(value);
+  } else if (MATCH("supermercato", "C_clienti")) {
+    pconfig->C_clienti = atoi(value);
+  } else if (MATCH("supermercato", "minimumClientInside")) {
+    pconfig->E_min = atoi(value);
+  } else if (MATCH("supermercato", "T_prodottoCliente")) {
+    pconfig->T_buyTimeCliente = atoi(value);
+  } else if (MATCH("supermercato", "P_prodottiMAX")) {
+    pconfig->P_maxProdCliente = atoi(value);
+  } else if (MATCH("supermercato", "T_prodottoCassa")) {
+    pconfig->T_timeElabCassa = atoi(value);
+  } else if (MATCH("supermercato", "T_notificaCassa")) {
+    pconfig->timeNotifica = atoi(value);
+  } else if (MATCH("supermercato", "S1")) {
+    pconfig->S1 = atoi(value);
+  } else if (MATCH("supermercato", "S2")) {
+    pconfig->S2 = atoi(value);
+  }
+  return 1;
 }
 
 long msecond_timespec_diff(struct timespec *start, struct timespec *end) {

@@ -6,7 +6,7 @@ SRC		:= src
 INCLUDE	:= lib
 LIB		:= lib
 
-#LIBRARIES	:= -lFunzioni
+LIBRARIES	:= -lFunzioni
 
 SOURCES := $(wildcard $(SRC)/*.c)
 OBJECTS := $(patsubst $(SRC)/%.c, $(BIN)/%.o, $(SOURCES))
@@ -15,7 +15,7 @@ OBJECTS := $(patsubst $(SRC)/%.c, $(BIN)/%.o, $(SOURCES))
 all: $(OBJECTS)
 
 $(BIN)/%.o: $(SRC)/%.c
-	$(CC) $(C_FLAGS) -I$(INCLUDE) -L$(LIB) -I$(LIB) $^ -o $@ 
+	$(CC) $(C_FLAGS) -I$(INCLUDE) -L$(LIB) -I$(LIB) $^ -o $@ $(LIBRARIES)
 
 clear:
 	-rm $(BIN)/*
