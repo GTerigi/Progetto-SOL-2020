@@ -24,14 +24,14 @@ clear:
 
 test:
 	(./bin/supermercato.o & echo $$! > pid.PID) &
-	sleep 10s; \
+	sleep 25s; \
 	kill -1 $$(cat pid.PID); \
 	chmod +x ./analisi.sh 
 	./analisi.sh $$(cat pid.PID); \
 
 test2:
 	(./bin/supermercato.o & echo $$! > pid.PID) &
-	sleep 10s; \
-	kill -1 $$(cat pid.PID); \
+	sleep 25s; \
+	kill -3 $$(cat pid.PID); \
 	chmod +x ./analisi.sh 
 	./analisi.sh $$(cat pid.PID); \

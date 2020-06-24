@@ -2,8 +2,7 @@
 echo "Aspetto la chiusura del Processo $1"
 while [ -e /proc/$1 ]
 do
-
-    sleep 5s
+    sleep 2s
 done
 
 if [ -f "statsfile.log" ]; then
