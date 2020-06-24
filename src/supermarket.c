@@ -25,9 +25,6 @@ typedef struct infoCassa_ {
   int HBO; // Has Been Opened. Controlla se la cassa è mai stata aperta o meno.
 } infoCassa;
 
-void initInfoCassa(infoCassa *sm, int i);
-void printsm(infoCassa sm);
-
 typedef struct config {
   int K_cassieri;
   int C_clienti;
@@ -55,7 +52,7 @@ void *DirettoreButtaDentro(void *arg);
 
 void *updateDirT(void *arg);
 void *mainCassa(void *arg);
-
+void initInfoCassa(infoCassa *cassa, int ID);
 // === CLIENTE === //
 
 void *mainCliente(void *arg);
@@ -301,22 +298,6 @@ void QueueFree() {
   free(aChiudiCassa);
   free(aUpdateCassa);
   free(McassaUpdateInfo);
-}
-
-void initInfoCassa(infoCassa *sm, int i) {
-  sm->IDcassa = (i + 1);
-  sm->prodElaborati = 0;
-  sm->clientiProcessati = 0;
-  sm->tempoOpen = 0;
-  sm->tempoServizio = 0;
-  sm->Nchiusure = 0;
-  sm->tempoElabProdotto = 0;
-  sm->HBO = 0;
-}
-
-void printsm(infoCassa sm) {
-  printf("%d %d %d %d %f %d\n", sm.IDcassa, sm.prodElaborati,
-         sm.clientiProcessati, sm.tempoOpen, sm.tempoServizio, sm.Nchiusure);
 }
 
 int confcheck(config *globalParamSupermercato) {
@@ -948,6 +929,17 @@ void *mainCassa(void *arg) {
     }
     pthread_mutex_unlock(&McodaClienti[indexCoda]);
   }
+}
+
+void initInfoCassa(infoCassa *cassa, int ID) {
+  cassa->IDcassa = (ID + 1);
+  cassa->prodElaborati = 0;
+  cassa->clientiProcessati = 0;
+  cassa->tempoOpen = 0;
+  cassa->tempoServizio = 0;
+  cassa->Nchiusure = 0;
+  cassa->tempoElabProdotto = 0;
+  cassa->HBO = 0;
 }
 
 // === CLIENTE === //
