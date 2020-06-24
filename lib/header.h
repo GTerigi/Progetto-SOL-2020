@@ -19,12 +19,11 @@ static pthread_mutex_t McodaDirettore = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t CcodaDirettoreClienteEsce = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t CcodaDirettoreNotEmpty = PTHREAD_COND_INITIALIZER;
 
-// Used to syncronized the variable lenghtCode for the queues length (Used by
-// director to open/close the supermarket checkouts)
+// Mutex e condizioni per l'update da parte del direttore.
 static pthread_mutex_t *MlengthCode;
 static pthread_cond_t *ClengthCode;
 
-// Lock and condition variable to syncronize the update by the cashiers
+// Mutex e condizioni per l'update da parte delle casse
 static pthread_mutex_t MupdateCasse = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t CupdateCasse = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t *McassaUpdateInfo;
@@ -32,14 +31,17 @@ static pthread_mutex_t *McassaUpdateInfo;
 // FILE MUTEX
 static pthread_mutex_t Mfile = PTHREAD_MUTEX_INITIALIZER;
 
-static int *lenghtCode; // Array that contains queue's length
+static int *lenghtCode; // Array contenente la lunghezza delle code al momento dell'update
 
-// Array that contains if the queue is going to be closed or not
-static int *aUpdateCassa;      // Used to update the director from cashier!
-static int sigUPCassaExit = 0; // Used when activecustomers are = 0 to send a
-                               // signal to cashier in case of a SIGHUP
-static long globalTime;        // TIME
-static FILE *fileLog;          // File containing stats of the execution
+// Array contenente le informazioni relative alla chiusura delle casse da parte del direttore
+// {0} -> Rimani aperta {1} -> Chiudi
+static int *aUpdateCassa;
+
+// Quando viene ricevuto il segnale Sig_HUP notifico a tutte le casse che possono uscire.
+static int sigUPCassaExit = 0;
+
+static long globalTime;
+static FILE *fileLog;
 
 volatile sig_atomic_t sig_HUP = 0;
 volatile sig_atomic_t sig_QUIT = 0;
