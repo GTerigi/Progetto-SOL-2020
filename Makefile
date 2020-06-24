@@ -32,6 +32,6 @@ test:
 test2:
 	(./bin/supermercato.o & echo $$! > pid.PID) &
 	sleep 10s; \
-	kill -1 $$(cat pid.PID); \
+	kill -3 $$(cat pid.PID); \
 	chmod +x ./analisi.sh 
 	./analisi.sh $$(cat pid.PID); \
