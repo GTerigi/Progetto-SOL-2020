@@ -140,7 +140,8 @@ int main(int argc, char const *argv[]) {
             "\nNumero di Chiusure %d\n\n",
             Casse[i].IDcassa, Casse[i].prodElaborati,
             Casse[i].clientiProcessati, (double)Casse[i].tempoOpen / pow(10, 6),
-            Casse[i].tempoServizio / 1000, Casse[i].Nchiusure);
+            (Casse[i].tempoServizio / Casse[i].prodElaborati),
+            Casse[i].Nchiusure);
     totClienti += Casse[i].clientiProcessati;
     totProdotti += Casse[i].prodElaborati;
   }
@@ -774,9 +775,7 @@ void *mainCassa(void *arg) {
       // Aggiorno i valori della cassa  e segnalo al cliente che può uscire.
       thisCassa->prodElaborati += cliente->ProdComprati;
       thisCassa->clientiProcessati++;
-      thisCassa->tempoServizio = thisCassa->tempoServizio +
-                                 ((timeElabCassa - (thisCassa->tempoServizio)) /
-                                  thisCassa->clientiProcessati);
+      thisCassa->tempoServizio += timeElabCassa;
       cliente->uscitaCoda = 1;
       pthread_mutex_lock(&McodaClienti[indexCoda]);
       pthread_cond_broadcast(&CcodaClienti[indexCoda]);
@@ -946,20 +945,23 @@ void *mainCliente(void *arg) {
     pthread_cond_wait(&CcodaDirettoreClienteEsce, &McodaDirettore);
   }
   pthread_mutex_unlock(&McodaDirettore);
-  if (cliente->uscitaCoda != 1)
+  if (cliente->uscitaCoda != 1) {
+    cliente->tempoCoda = 0;
     cliente->ProdComprati = 0;
+  } else {
+    cliente->tempoCoda = msecond_timespec_diff(&timeInsideCoda, &timeExitCoda);
+  }
 
   // timestamp dell'uscita dal supermercato.
   clock_gettime(CLOCK_REALTIME, &timeUscita);
 
   cliente->tempoInside = msecond_timespec_diff(&timeEntrata, &timeUscita);
-  cliente->tempoCoda = msecond_timespec_diff(&timeInsideCoda, &timeExitCoda);
+
   fflush(stdout);
   pthread_mutex_lock(&Mfile);
   fprintf(fileLog,
-          "Cliente -> | id Cliente:%d | n. bought products:%d | time in the "
-          "supermarket: %0.3f s | time in queue: %0.3f s | n. queues checked: "
-          "%d | \n",
+          "[Cliente %d] Prodotti acquistati %d --- Tempo nel Supermercato "
+          "%0.3fs --- Tempo in Coda %0.3fs --- Code effettuate %d\n",
           cliente->IDcliente, cliente->ProdComprati,
           (double)cliente->tempoInside / (pow(10, 6)),
           (double)cliente->tempoCoda / (pow(10, 6)), cliente->nCodeScelte);

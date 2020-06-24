@@ -1,11 +1,10 @@
 #!/bin/bash
-
+echo "Aspetto la chiusura del Processo $1"
 while [ -e /proc/$1 ]
 do
-    echo "Aspetto che Esca il Supermercato";
-    sleep 1s
-done
 
+    sleep 5s
+done
 
 if [ -f "statsfile.log" ]; then
     while read line; do echo $line; done < statsfile.log

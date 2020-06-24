@@ -1,5 +1,5 @@
 CC		:= gcc
-C_FLAGS := -Wall -lpthread #-g  -Wextra -pedantic -std=gnu99
+C_FLAGS := -Wall -lpthread  -std=gnu99 -g#  -Wextra -pedantic
 
 BIN		:= bin
 SRC		:= src
@@ -19,19 +19,19 @@ $(BIN)/%.o: $(SRC)/%.c
 
 clear:
 	-rm $(BIN)/*
-	-rm -f  ./statsfile.log supermarket.PID
+	-rm -f  ./statsfile.log pid.PID
 	-clear
 
 test:
-	(./bin/supermarket.o & echo $$! > supermarket.PID) &
+	(./bin/supermercato.o & echo $$! > pid.PID) &
 	sleep 10s; \
-	kill -1 $$(cat supermarket.PID); \
+	kill -1 $$(cat pid.PID); \
 	chmod +x ./analisi.sh 
-	./analisi.sh $$(cat supermarket.PID); \
+	./analisi.sh $$(cat pid.PID); \
 
 test2:
-	(./bin/supermarket.o & echo $$! > supermarket.PID) &
+	(./bin/supermercato.o & echo $$! > pid.PID) &
 	sleep 10s; \
-	kill -3 $$(cat supermarket.PID); \
+	kill -1 $$(cat pid.PID); \
 	chmod +x ./analisi.sh 
-	./analisi.sh $$(cat supermarket.PID); \
+	./analisi.sh $$(cat pid.PID); \
