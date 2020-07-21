@@ -11,11 +11,11 @@ Il copia-incolla di codice sorgente, è altamente sconsigliato. Non mi assumo ne
 ## Overview
 Il progetto consiste nella realizzazione di un processo che simula la gestione di un supermercato. Le entità
 presenti in questo processo sono le seguenti:
-..* **Direttore**: Ha il compito di aprire e chiudere le casse, gestire l’afflusso e l’uscita di clienti all’interno
+  * **Direttore**: Ha il compito di aprire e chiudere le casse, gestire l’afflusso e l’uscita di clienti all’interno
 del supermercato e di monitoraggio globale.
-..* **Casse**: Il loro ciclo di vita è quello di elaborare le richieste dei clienti, e ogni T millisecondi aggiornare
+  * **Casse**: Il loro ciclo di vita è quello di elaborare le richieste dei clienti, e ogni T millisecondi aggiornare
 il direttore del proprio stato interno.
-..* **Cliente**: Una volta entrato nel supermercato raccoglie un numero random di prodotti e poi va alla
+  * **Cliente**: Una volta entrato nel supermercato raccoglie un numero random di prodotti e poi va alla
 cassa per pagare. Una volta processato dalla cassa chiede al direttore la possibilità di uscire.
 
 
